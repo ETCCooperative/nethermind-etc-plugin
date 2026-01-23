@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  NETHERMIND_REPO: diega/nethermind_etc
+  # NETHERMIND_REPO: NethermindEth/nethermind  # Cambiar cuando esté listo
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from csproj
+        id: version
+        run: |
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build Release
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+      - name: Publish plugin
+        run: |
+          dotnet publish src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj \
+            --no-build \
+            --configuration Release \
+            --output ./publish
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: |
+            publish/Nethermind.EthereumClassic.dll
+            chainspecs/
+            configs/
+
+  create-bundles:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [linux-arm64, linux-x64, macos-arm64, macos-x64, windows-x64]
+
+    steps:
+      - name: Download plugin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin
+          path: plugin
+
+      - name: Get latest Nethermind release tag
+        id: nethermind
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list --repo ${{ env.NETHERMIND_REPO }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Nethermind release: $TAG"
+
+      - name: Download Nethermind release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PATTERN="*-${{ matrix.arch }}.zip"
+          echo "Downloading asset matching $PATTERN from ${{ env.NETHERMIND_REPO }} release ${{ steps.nethermind.outputs.tag }}"
+          gh release download ${{ steps.nethermind.outputs.tag }} \
+            --repo ${{ env.NETHERMIND_REPO }} \
+            --pattern "$PATTERN" \
+            --output nethermind.zip
+
+      - name: Extract and integrate plugin
+        run: |
+          unzip nethermind.zip -d nethermind
+
+          # Copy plugin DLL to plugins folder
+          cp plugin/publish/Nethermind.EthereumClassic.dll nethermind/plugins/
+
+          # Create chainspecs folder (doesn't exist in base Nethermind)
+          mkdir -p nethermind/chainspecs
+
+          # Copy chainspecs
+          cp plugin/chainspecs/*.json nethermind/chainspecs/
+
+          # Copy configs
+          cp plugin/configs/*.cfg nethermind/configs/
+
+      - name: Create bundle archive
+        run: |
+          cd nethermind
+          zip -r ../nethermind-etc-v${{ needs.build.outputs.version }}-${{ matrix.arch }}.zip .
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.arch }}
+          path: nethermind-etc-v${{ needs.build.outputs.version }}-${{ matrix.arch }}.zip
+
+  release:
+    needs: [build, create-bundles]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download plugin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin
+          path: plugin
+
+      - name: Download all bundle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          path: bundles
+          merge-multiple: true
+
+      - name: Create plugin-only archive
+        run: |
+          mkdir -p release
+          cp plugin/publish/Nethermind.EthereumClassic.dll release/
+          cp -r plugin/chainspecs plugin/configs release/
+          cd release && zip -r ../nethermind-etc-plugin-v${{ needs.build.outputs.version }}.zip .
+
+      - name: Generate checksums
+        run: |
+          sha256sum nethermind-etc-plugin-v${{ needs.build.outputs.version }}.zip > SHA256SUMS
+          sha256sum bundles/*.zip >> SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: v${{ needs.build.outputs.version }}
+          files: |
+            nethermind-etc-plugin-v${{ needs.build.outputs.version }}.zip
+            bundles/*.zip
+            SHA256SUMS
+          generate_release_notes: true
+          draft: false

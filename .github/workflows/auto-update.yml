@@ -1,0 +1,204 @@
+name: Auto-Update Nethermind
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:        # Manual trigger
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.check.outputs.new_version }}
+      current_version: ${{ steps.check.outputs.current_version }}
+      needs_update: ${{ steps.check.outputs.needs_update }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for Nethermind updates
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Get latest Nethermind release version
+          LATEST=$(gh api repos/NethermindEth/nethermind/releases/latest --jq '.tag_name' | sed 's/^v//')
+          echo "Latest Nethermind release: $LATEST"
+
+          # Get current version from Directory.Packages.props
+          CURRENT=$(grep -oP 'Include="Nethermind.ReferenceAssemblies" Version="\K[^"]+' Directory.Packages.props)
+          echo "Current version in repo: $CURRENT"
+
+          echo "new_version=$LATEST" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
+
+          if [ "$LATEST" != "$CURRENT" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "Update needed: $CURRENT -> $LATEST"
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Already up to date"
+          fi
+
+  update-build-release:
+    needs: check-and-update
+    if: needs.check-and-update.outputs.needs_update == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Update version files
+        id: update
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+          CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
+        run: |
+          echo "Updating from $CURRENT_VERSION to $NEW_VERSION"
+
+          # Update Directory.Packages.props
+          sed -i "s/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$CURRENT_VERSION\"/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$NEW_VERSION\"/" Directory.Packages.props
+
+          # Update csproj Version (append .0 for plugin version)
+          sed -i "s/<Version>$CURRENT_VERSION.0<\/Version>/<Version>$NEW_VERSION.0<\/Version>/" src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+
+          echo "Files updated:"
+          grep -n "Nethermind.ReferenceAssemblies" Directory.Packages.props
+          grep -n "<Version>" src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+
+      - name: Restore dependencies
+        id: restore
+        run: dotnet restore 2>&1 | tee restore.log
+
+      - name: Build
+        id: build
+        run: dotnet build --no-restore --configuration Release 2>&1 | tee build.log
+
+      - name: Test
+        id: test
+        run: dotnet test --no-build --configuration Release 2>&1 | tee test.log
+
+      - name: Publish plugin
+        run: |
+          dotnet publish src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj \
+            --no-build \
+            --configuration Release \
+            --output ./publish
+
+      - name: Create release archive
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          mkdir -p release
+          cp publish/Nethermind.EthereumClassic.dll release/
+          cp -r chainspecs configs release/
+          cd release && zip -r ../nethermind-etc-plugin-v${NEW_VERSION}.0.zip .
+
+      - name: Commit and push changes
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+          git commit -m "chore: update to Nethermind $NEW_VERSION"
+          git push
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        with:
+          tag_name: v${{ needs.check-and-update.outputs.new_version }}.0
+          name: v${{ needs.check-and-update.outputs.new_version }}.0
+          files: nethermind-etc-plugin-v${{ needs.check-and-update.outputs.new_version }}.0.zip
+          body: |
+            Automatic update to Nethermind ${{ needs.check-and-update.outputs.new_version }}
+
+            [Nethermind ${{ needs.check-and-update.outputs.new_version }} Release Notes](https://github.com/NethermindEth/nethermind/releases/tag/${{ needs.check-and-update.outputs.new_version }})
+          draft: false
+
+  create-pr-on-failure:
+    needs: [check-and-update, update-build-release]
+    if: failure() && needs.check-and-update.outputs.needs_update == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update version files
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+          CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
+        run: |
+          # Update Directory.Packages.props
+          sed -i "s/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$CURRENT_VERSION\"/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$NEW_VERSION\"/" Directory.Packages.props
+
+          # Update csproj Version (append .0 for plugin version)
+          sed -i "s/<Version>$CURRENT_VERSION.0<\/Version>/<Version>$NEW_VERSION.0<\/Version>/" src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+
+      - name: Create PR branch and push
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          BRANCH_NAME="auto-update/nethermind-${NEW_VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH_NAME"
+          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+          git commit -m "chore: update to Nethermind $NEW_VERSION"
+          git push -u origin "$BRANCH_NAME"
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+          CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr create \
+            --title "[Auto-Update] Nethermind $NEW_VERSION - Build Failed" \
+            --body "$(cat <<EOF
+          ## Auto-Update: Nethermind $NEW_VERSION
+
+          ### Build/Test Failed
+
+          This automatic update encountered issues while trying to update
+          from Nethermind \`$CURRENT_VERSION\` to \`$NEW_VERSION\`.
+
+          ### Error Details
+
+          See the [workflow run logs]($RUN_URL) for detailed error information.
+
+          ### Changes made
+
+          - \`Directory.Packages.props\`: Nethermind.ReferenceAssemblies → $NEW_VERSION
+          - \`Nethermind.EthereumClassic.csproj\`: Version → $NEW_VERSION.0
+
+          ### Next steps
+
+          1. Review changes in Nethermind $NEW_VERSION
+          2. Fix incompatibilities
+          3. Merge this PR
+          4. Run release manually
+
+          [Nethermind $NEW_VERSION Release Notes](https://github.com/NethermindEth/nethermind/releases/tag/$NEW_VERSION)
+          EOF
+          )" \
+            --assignee "diega" \
+            --label "auto-update,needs-attention" \
+            --base main
