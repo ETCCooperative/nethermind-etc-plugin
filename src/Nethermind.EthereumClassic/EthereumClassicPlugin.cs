@@ -15,7 +15,6 @@ using Nethermind.Consensus;
 using Nethermind.Consensus.Ethash;
 using Nethermind.Consensus.Producers;
 using Nethermind.Consensus.Rewards;
-using Nethermind.Core;
 using Nethermind.Core.Specs;
 using Nethermind.Crypto;
 using Nethermind.EthereumClassic.Config;
@@ -23,6 +22,7 @@ using Nethermind.EthereumClassic.Mining;
 using Nethermind.JsonRpc.Modules;
 using Nethermind.KeyStore.Config;
 using Nethermind.Logging;
+using Nethermind.Core;
 using Nethermind.Specs.ChainSpecStyle;
 
 namespace Nethermind.EthereumClassic;
@@ -183,6 +183,16 @@ public class EthereumClassicModule(
             // Override EthashSealer with RemoteEtchashSealer
             builder.Register(ctx => new RemoteEtchashSealer(
                     ctx.Resolve<IRemoteSealerClient>(),
+                    ctx.Resolve<ISigner>(),
+                    ctx.Resolve<ILogManager>()))
+                .As<ISealer>()
+                .SingleInstance();
+        }
+        else if (miningMode == EtcMiningMode.Local)
+        {
+            // Override EthashSealer with LocalEtchashSealer for CPU mining
+            builder.Register(ctx => new LocalEtchashSealer(
+                    ctx.Resolve<IEthash>(),
                     ctx.Resolve<ISigner>(),
                     ctx.Resolve<ILogManager>()))
                 .As<ISealer>()
