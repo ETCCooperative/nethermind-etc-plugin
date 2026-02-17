@@ -19,8 +19,9 @@ public class EtchashChainSpecEngineParameters : EthashChainSpecEngineParametersB
     // Reimplemented to match "Etchash" engine section in chainspec
     string? IChainSpecEngineParameters.EngineName => "Etchash";
 
-    // Keep using Ethash seal engine (same PoW validation logic)
-    string? IChainSpecEngineParameters.SealEngineType => Core.SealEngineType.Ethash;
+    // Use "Etchash" seal engine type to disable EthashPlugin and let
+    // EthereumClassicPlugin be the sole IConsensusPlugin
+    string? IChainSpecEngineParameters.SealEngineType => "Etchash";
 
     /// <summary>
     /// Block number at which ECIP-1099 (Thanos/Etchash) activates.
