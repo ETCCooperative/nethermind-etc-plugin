@@ -1,0 +1,61 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NETHERMIND_REPO: diega/nethermind_etc
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build & publish plugin
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration Release
+          dotnet publish src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj \
+            --no-build --configuration Release --output ./publish
+
+      - name: Download Nethermind release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list --repo ${{ env.NETHERMIND_REPO }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Nethermind release: $TAG"
+          gh release download "$TAG" \
+            --repo ${{ env.NETHERMIND_REPO }} \
+            --pattern "*-linux-x64.zip" \
+            --output nethermind.zip
+          unzip nethermind.zip -d nethermind
+
+      - name: Inject plugin into Nethermind
+        run: |
+          cp publish/Nethermind.EthereumClassic.dll nethermind/plugins/
+          mkdir -p nethermind/chainspecs
+          cp chainspecs/*.json nethermind/chainspecs/
+          cp configs/*.cfg nethermind/configs/
+
+      - name: Run integration tests
+        run: |
+          chmod +x scripts/integration-test.sh
+          ./scripts/integration-test.sh ./nethermind
+
+      - name: Upload Nethermind logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nethermind-logs
+          path: nethermind/nethermind-test.log
