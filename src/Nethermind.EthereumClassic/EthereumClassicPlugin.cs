@@ -24,6 +24,7 @@ using Nethermind.KeyStore.Config;
 using Nethermind.Logging;
 using Nethermind.Core;
 using Nethermind.Specs.ChainSpecStyle;
+using Nethermind.Synchronization.Peers;
 
 namespace Nethermind.EthereumClassic;
 
@@ -37,6 +38,7 @@ namespace Nethermind.EthereumClassic;
 public class EthereumClassicPlugin(
     ChainSpec chainSpec,
     IEtcMiningConfig miningConfig,
+    IEtcMessConfig messConfig,
     IKeyStoreConfig keyStoreConfig) : IConsensusPlugin
 {
     public string Name => "Etchash";
@@ -46,6 +48,7 @@ public class EthereumClassicPlugin(
     public string SealEngineType => "Etchash";
 
     private INethermindApi? _nethermindApi;
+    private MessActivationMonitor? _messMonitor;
 
     private EtchashChainSpecEngineParameters? GetEtchashParams() =>
         chainSpec.EngineChainSpecParametersProvider?.AllChainSpecParameters
@@ -73,7 +76,24 @@ public class EthereumClassicPlugin(
         return Task.CompletedTask;
     }
 
-    public Task InitNetworkProtocol() => Task.CompletedTask;
+    public Task InitNetworkProtocol()
+    {
+        if (messConfig.Enabled)
+        {
+            var blockTree = _nethermindApi!.BlockTree as EtcBlockTree;
+            if (blockTree is not null)
+            {
+                _messMonitor = new MessActivationMonitor(
+                    blockTree,
+                    _nethermindApi.Context.Resolve<ISyncPeerPool>(),
+                    _nethermindApi.Timestamper,
+                    _nethermindApi.LogManager);
+                _messMonitor.Start();
+            }
+        }
+
+        return Task.CompletedTask;
+    }
     public Task InitRpcModules() => Task.CompletedTask;
 
     public IBlockProducer InitBlockProducer()
@@ -120,7 +140,8 @@ public class EthereumClassicPlugin(
                 p.DieHardTransition,
                 p.GothamTransition,
                 p.Ecip1041Transition,
-                miningConfig.Mode);
+                miningConfig.Mode,
+                messConfig.Enabled);
         }
     }
 }
@@ -131,10 +152,20 @@ public class EthereumClassicModule(
     long? dieHardTransition,
     long? gothamTransition,
     long? ecip1041Transition,
-    EtcMiningMode miningMode) : Module
+    EtcMiningMode miningMode,
+    bool messEnabled) : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
+        // Register EtcBlockTree as IBlockTree when MESS is enabled
+        if (messEnabled)
+        {
+            builder.RegisterType<EtcBlockTree>()
+                .As<IBlockTree>()
+                .AsSelf()
+                .SingleInstance();
+        }
+
         // Override IEthash with Etchash implementation
         builder.Register(ctx => new Etchash(ctx.Resolve<ILogManager>(), ecip1099Transition))
             .As<IEthash>()
