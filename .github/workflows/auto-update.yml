@@ -91,7 +91,6 @@ jobs:
       - name: Publish plugin
         run: |
           dotnet publish src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj \
-            --no-build \
             --configuration Release \
             --output ./publish
 
@@ -161,7 +160,7 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
           git commit -m "chore: update to Nethermind $NEW_VERSION"
-          git push -u origin "$BRANCH_NAME"
+          git push -u origin "$BRANCH_NAME" --force
 
       - name: Create Pull Request
         env:
