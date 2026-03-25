@@ -5,7 +5,7 @@
 
   <ItemGroup>
     <!-- Nethermind reference assemblies for plugin development -->
-    <PackageVersion Include="Nethermind.ReferenceAssemblies" Version="1.36.0" />
+    <PackageVersion Include="Nethermind.ReferenceAssemblies" Version="1.36.2" />
 
     <!-- Required dependencies -->
     <PackageVersion Include="Autofac" Version="9.0.0" />
