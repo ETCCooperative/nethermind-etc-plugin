@@ -30,6 +30,7 @@ internal class EtcBlockTree : BlockTree
         [KeyFilter("blockInfos")] IDb? blockInfoDb,
         [KeyFilter("metadata")] IDb? metadataDb,
         IBadBlockStore? badBlockStore,
+        IBlockAccessListStore? balStore,
         IChainLevelInfoRepository? chainLevelInfoRepository,
         ISpecProvider? specProvider,
         IBloomStorage? bloomStorage,
@@ -37,7 +38,7 @@ internal class EtcBlockTree : BlockTree
         ILogManager? logManager,
         long genesisBlockNumber = 0)
         : base(blockStore, headerDb, blockInfoDb, metadataDb, badBlockStore,
-            chainLevelInfoRepository, specProvider, bloomStorage, syncConfig,
+            balStore, chainLevelInfoRepository, specProvider, bloomStorage, syncConfig,
             logManager, genesisBlockNumber)
     {
     }
