@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
 
 env:
-  NETHERMIND_REPO: diega/nethermind_etc
-  # NETHERMIND_REPO: NethermindEth/nethermind  # Cambiar cuando esté listo
+  NETHERMIND_REPO: NethermindEth/nethermind
 
 jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      nethermind_tag: ${{ steps.version.outputs.nethermind_tag }}
 
     steps:
       - name: Checkout
@@ -21,8 +21,11 @@ jobs:
         id: version
         run: |
           VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj)
+          NETHERMIND_TAG=$(grep -oP 'Include="Nethermind.ReferenceAssemblies" Version="\K[^"]+' Directory.Packages.props)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Detected version: $VERSION"
+          echo "nethermind_tag=$NETHERMIND_TAG" >> $GITHUB_OUTPUT
+          echo "Plugin version: $VERSION"
+          echo "Nethermind runtime tag: $NETHERMIND_TAG"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -68,22 +71,14 @@ jobs:
           name: plugin
           path: plugin
 
-      - name: Get latest Nethermind release tag
-        id: nethermind
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG=$(gh release list --repo ${{ env.NETHERMIND_REPO }} --limit 1 --json tagName --jq '.[0].tagName')
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Nethermind release: $TAG"
-
       - name: Download Nethermind release
         env:
           GH_TOKEN: ${{ github.token }}
+          NETHERMIND_TAG: ${{ needs.build.outputs.nethermind_tag }}
         run: |
           PATTERN="*-${{ matrix.arch }}.zip"
-          echo "Downloading asset matching $PATTERN from ${{ env.NETHERMIND_REPO }} release ${{ steps.nethermind.outputs.tag }}"
-          gh release download ${{ steps.nethermind.outputs.tag }} \
+          echo "Downloading asset matching $PATTERN from ${{ env.NETHERMIND_REPO }} release $NETHERMIND_TAG"
+          gh release download "$NETHERMIND_TAG" \
             --repo ${{ env.NETHERMIND_REPO }} \
             --pattern "$PATTERN" \
             --output nethermind.zip
