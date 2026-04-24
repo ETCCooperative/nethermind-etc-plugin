@@ -86,15 +86,15 @@ jobs:
 
       - name: Restore dependencies
         id: restore
-        run: dotnet restore 2>&1 | tee restore.log
+        run: dotnet restore
 
       - name: Build
         id: build
-        run: dotnet build --no-restore --configuration Release 2>&1 | tee build.log
+        run: dotnet build --no-restore --configuration Release
 
       - name: Test
         id: test
-        run: dotnet test --no-build --configuration Release 2>&1 | tee test.log
+        run: dotnet test --no-build --configuration Release
 
       - name: Publish plugin
         run: |
@@ -166,7 +166,11 @@ jobs:
           BRANCH_NAME="auto-update/nethermind-${NEW_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH_NAME"
+          # Fetch the remote branch if it exists from a previous failed run, so
+          # --force-with-lease has a known ref to compare against (otherwise it
+          # rejects the push as "stale info").
+          git fetch origin "$BRANCH_NAME" || true
+          git checkout -B "$BRANCH_NAME"
           git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
           git commit -m "chore: update to Nethermind $NEW_VERSION"
           git push --force-with-lease -u origin "$BRANCH_NAME"
