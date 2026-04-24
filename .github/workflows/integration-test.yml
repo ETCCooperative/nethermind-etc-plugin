@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  NETHERMIND_REPO: diega/nethermind_etc
+  NETHERMIND_REPO: NethermindEth/nethermind
 
 jobs:
   integration:
@@ -33,7 +33,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=$(gh release list --repo ${{ env.NETHERMIND_REPO }} --limit 1 --json tagName --jq '.[0].tagName')
+          # Use the exact Nethermind version the plugin is built against, so the
+          # plugin's assembly references (e.g. Nethermind.Specs) resolve at runtime.
+          TAG=$(grep -oP 'Include="Nethermind.ReferenceAssemblies" Version="\K[^"]+' Directory.Packages.props)
           echo "Nethermind release: $TAG"
           gh release download "$TAG" \
             --repo ${{ env.NETHERMIND_REPO }} \
