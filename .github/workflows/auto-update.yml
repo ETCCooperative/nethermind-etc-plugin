@@ -5,6 +5,9 @@ on:
     - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:        # Manual trigger
 
+env:
+  NETHERMIND_REPO: NethermindEth/nethermind
+
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
@@ -25,8 +28,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Get latest Nethermind release version + commit SHA
-          LATEST=$(gh api repos/NethermindEth/nethermind/releases/latest --jq '.tag_name' | sed 's/^v//')
-          LATEST_SHA=$(gh api repos/NethermindEth/nethermind/releases/latest --jq '.target_commitish' | head -c 8)
+          LATEST=$(gh api repos/${{ env.NETHERMIND_REPO }}/releases/latest --jq '.tag_name' | sed 's/^v//')
+          LATEST_SHA=$(gh api repos/${{ env.NETHERMIND_REPO }}/releases/latest --jq '.target_commitish' | head -c 8)
           echo "Latest Nethermind release: $LATEST @ $LATEST_SHA"
 
           # Get current version from Directory.Packages.props
@@ -71,13 +74,12 @@ jobs:
             fi
           fi
 
-  update-build-release:
+  build:
     needs: check-and-update
     if: needs.check-and-update.outputs.needs_update == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
 
     steps:
       - name: Checkout
@@ -86,10 +88,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Update version files
-        id: update
         env:
           NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
           CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
@@ -107,15 +108,12 @@ jobs:
           grep -n "<Version>" src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
 
       - name: Restore dependencies
-        id: restore
         run: dotnet restore
 
       - name: Build
-        id: build
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        id: test
         run: dotnet test --no-build --configuration Release
 
       - name: Publish plugin
@@ -125,14 +123,14 @@ jobs:
             --configuration Release \
             --output ./publish
 
-      - name: Create release archive
-        env:
-          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
-        run: |
-          mkdir -p release
-          cp publish/Nethermind.EthereumClassic.dll release/
-          cp -r chainspecs configs release/
-          cd release && zip -r ../nethermind-etc-plugin-v${NEW_VERSION}.0.zip .
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: |
+            publish/Nethermind.EthereumClassic.dll
+            chainspecs/
+            configs/
 
       - name: Commit and push changes
         env:
@@ -142,13 +140,103 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
           # On a `replace` rebuild the version files don't change, so there is
-          # nothing to commit. Skip in that case.
+          # nothing to commit.
           if git diff --cached --quiet; then
             echo "No file changes to commit (release_action=${{ needs.check-and-update.outputs.release_action }})."
           else
             git commit -m "chore: update to Nethermind $NEW_VERSION"
             git push
           fi
+
+  create-bundles:
+    needs: [check-and-update, build]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [linux-arm64, linux-x64, macos-arm64, macos-x64, windows-x64]
+
+    steps:
+      - name: Download plugin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin
+          path: plugin
+
+      - name: Download Nethermind release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NETHERMIND_TAG: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          PATTERN="*-${{ matrix.arch }}.zip"
+          echo "Downloading asset matching $PATTERN from ${{ env.NETHERMIND_REPO }} release $NETHERMIND_TAG"
+          gh release download "$NETHERMIND_TAG" \
+            --repo ${{ env.NETHERMIND_REPO }} \
+            --pattern "$PATTERN" \
+            --output nethermind.zip
+
+      - name: Extract and integrate plugin
+        run: |
+          unzip nethermind.zip -d nethermind
+
+          # Copy plugin DLL to plugins folder
+          cp plugin/publish/Nethermind.EthereumClassic.dll nethermind/plugins/
+
+          # Create chainspecs folder (doesn't exist in base Nethermind)
+          mkdir -p nethermind/chainspecs
+
+          # Copy chainspecs and configs from the plugin artifact
+          cp plugin/chainspecs/*.json nethermind/chainspecs/
+          cp plugin/configs/*.cfg nethermind/configs/
+
+      - name: Create bundle archive
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          cd nethermind
+          zip -r ../nethermind-etc-v${NEW_VERSION}.0-${{ matrix.arch }}.zip .
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.arch }}
+          path: nethermind-etc-v${{ needs.check-and-update.outputs.new_version }}.0-${{ matrix.arch }}.zip
+
+  release:
+    needs: [check-and-update, build, create-bundles]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download plugin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin
+          path: plugin
+
+      - name: Download all bundle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          path: bundles
+          merge-multiple: true
+
+      - name: Create plugin-only archive
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          mkdir -p release
+          cp plugin/publish/Nethermind.EthereumClassic.dll release/
+          cp -r plugin/chainspecs plugin/configs release/
+          cd release && zip -r ../nethermind-etc-plugin-v${NEW_VERSION}.0.zip .
+
+      - name: Generate checksums
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          sha256sum nethermind-etc-plugin-v${NEW_VERSION}.0.zip > SHA256SUMS
+          sha256sum bundles/*.zip >> SHA256SUMS
+          cat SHA256SUMS
 
       - name: Delete previous release before replacing
         if: needs.check-and-update.outputs.release_action == 'replace'
@@ -168,7 +256,10 @@ jobs:
         with:
           tag_name: v${{ needs.check-and-update.outputs.new_version }}.0
           name: v${{ needs.check-and-update.outputs.new_version }}.0
-          files: nethermind-etc-plugin-v${{ needs.check-and-update.outputs.new_version }}.0.zip
+          files: |
+            nethermind-etc-plugin-v${{ needs.check-and-update.outputs.new_version }}.0.zip
+            bundles/*.zip
+            SHA256SUMS
           body: |
             Automatic update to Nethermind ${{ needs.check-and-update.outputs.new_version }}.
 
@@ -178,7 +269,7 @@ jobs:
           draft: false
 
   create-pr-on-failure:
-    needs: [check-and-update, update-build-release]
+    needs: [check-and-update, build, create-bundles, release]
     # Only on a real upgrade. A `replace` rebuild has no version diff, so a PR
     # would be empty — if one fails, the workflow logs are the right place to look.
     if: failure() && needs.check-and-update.outputs.release_action == 'upgrade'
