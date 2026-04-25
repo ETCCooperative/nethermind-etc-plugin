@@ -2,9 +2,24 @@ name: Release
 
 on:
   workflow_dispatch:
-
-env:
-  NETHERMIND_REPO: NethermindEth/nethermind
+    inputs:
+      plugin_ref:
+        description: 'Plugin ref to build (tag/branch/SHA). Empty = the workflow''s triggering ref (default: main).'
+        required: false
+        default: ''
+      nethermind_repo:
+        description: 'Source repo for Nethermind binaries (e.g. diega/nethermind_etc for ETC patch builds prior to 1.37.0). Empty = NethermindEth/nethermind.'
+        required: false
+        default: ''
+      nethermind_version:
+        description: 'Override upstream Nethermind release tag for the bundles (e.g. 1.36.2 or v1.36.2-etc). Empty = derive from Directory.Packages.props.'
+        required: false
+        default: ''
+      replace_existing:
+        description: 'If a release with this tag already exists, delete and recreate it.'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   build:
@@ -16,16 +31,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # When called with a `plugin_ref` input (e.g. to rebuild an old release
+          # against a tagged historic snapshot of the source), check out that ref
+          # for the build inputs while still running the workflow definition from
+          # the trigger ref (typically main).
+          ref: ${{ inputs.plugin_ref || github.ref }}
 
       - name: Get version from csproj
         id: version
         run: |
           VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj)
-          NETHERMIND_TAG=$(grep -oP 'Include="Nethermind.ReferenceAssemblies" Version="\K[^"]+' Directory.Packages.props)
+          if [ -n "${{ inputs.nethermind_version }}" ]; then
+            NETHERMIND_TAG="${{ inputs.nethermind_version }}"
+            echo "Nethermind runtime tag: $NETHERMIND_TAG (override from input)"
+          else
+            NETHERMIND_TAG=$(grep -oP 'Include="Nethermind.ReferenceAssemblies" Version="\K[^"]+' Directory.Packages.props)
+            echo "Nethermind runtime tag: $NETHERMIND_TAG (from Directory.Packages.props)"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "nethermind_tag=$NETHERMIND_TAG" >> $GITHUB_OUTPUT
           echo "Plugin version: $VERSION"
-          echo "Nethermind runtime tag: $NETHERMIND_TAG"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -75,11 +101,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NETHERMIND_TAG: ${{ needs.build.outputs.nethermind_tag }}
+          # ETC needed two upstream-missing fixes through 1.36.x, distributed via the
+          # diega/nethermind_etc fork. For 1.37.0+ both fixes are upstream, so the
+          # default points at upstream and only historical rebuilds need the override.
+          NETHERMIND_REPO: ${{ inputs.nethermind_repo || 'NethermindEth/nethermind' }}
         run: |
           PATTERN="*-${{ matrix.arch }}.zip"
-          echo "Downloading asset matching $PATTERN from ${{ env.NETHERMIND_REPO }} release $NETHERMIND_TAG"
+          echo "Downloading asset matching $PATTERN from $NETHERMIND_REPO release $NETHERMIND_TAG"
           gh release download "$NETHERMIND_TAG" \
-            --repo ${{ env.NETHERMIND_REPO }} \
+            --repo "$NETHERMIND_REPO" \
             --pattern "$PATTERN" \
             --output nethermind.zip
 
@@ -119,6 +149,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Same ref as the build job. If `replace_existing` removes a tag, we
+          # want softprops/action-gh-release to recreate it pointing at this
+          # historical commit — not at main HEAD.
+          ref: ${{ inputs.plugin_ref || github.ref }}
 
       - name: Download plugin artifact
         uses: actions/download-artifact@v4
@@ -146,6 +181,31 @@ jobs:
           sha256sum bundles/*.zip >> SHA256SUMS
           cat SHA256SUMS
 
+      - name: Delete previous release before replacing
+        if: inputs.replace_existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          # Keep the tag intact — annotated/signed tags are pre-created at the
+          # right commit and softprops will reuse them. `|| true` lets re-runs
+          # succeed when the release doesn't actually exist yet.
+          gh release delete "v${VERSION}" --yes || true
+
+      - name: Compose release notes
+        id: notes
+        env:
+          PLUGIN_REF: ${{ inputs.plugin_ref || github.ref_name }}
+          NETHERMIND_REPO: ${{ inputs.nethermind_repo || 'NethermindEth/nethermind' }}
+          NETHERMIND_TAG: ${{ needs.build.outputs.nethermind_tag }}
+        run: |
+          {
+            echo "Built from plugin ref \`${PLUGIN_REF}\` (commit \`${GITHUB_SHA::8}\`)."
+            echo
+            echo "Bundles include Nethermind from [\`${NETHERMIND_REPO}@${NETHERMIND_TAG}\`](https://github.com/${NETHERMIND_REPO}/releases/tag/${NETHERMIND_TAG})."
+          } > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -155,5 +215,5 @@ jobs:
             nethermind-etc-plugin-v${{ needs.build.outputs.version }}.zip
             bundles/*.zip
             SHA256SUMS
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           draft: false
