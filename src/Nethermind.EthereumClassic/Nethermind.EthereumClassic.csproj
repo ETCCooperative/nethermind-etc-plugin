@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.37.1.0</Version>
+    <Version>1.37.2.0</Version>
     <Description>Ethereum Classic (ETC) plugin for Nethermind - implements Etchash (ECIP-1099) and ECIP-1017 monetary policy</Description>
     <PackageTags>nethermind;ethereum;ethereum-classic;etc;etchash;blockchain;plugin</PackageTags>
     <Nullable>annotations</Nullable>
