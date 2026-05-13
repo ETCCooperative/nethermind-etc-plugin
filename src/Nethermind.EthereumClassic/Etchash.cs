@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Nethermind.Consensus.Ethash;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
@@ -20,76 +18,52 @@ namespace Nethermind.EthereumClassic;
 internal class Etchash : IEthash
 {
     private readonly ILogger _logger;
-    private readonly long _ecip1099Transition;
-    private readonly Dictionary<uint, (uint DagEpoch, Task<IEthashDataSet> DataSet)> _cache = new(); // keyed by seedEpoch
-    private readonly object _lock = new();
-    private const long EtchashEpochLength = 60000;
-    private readonly uint _transitionEpoch;
+    private readonly EtchashEpochCalculator _epochCalculator;
+    private readonly EtchashHintBasedCache _cache;
 
     public Etchash(ILogManager logManager, long ecip1099Transition)
     {
         _logger = logManager.GetClassLogger();
-        _ecip1099Transition = ecip1099Transition;
-        _transitionEpoch = (uint)(ecip1099Transition / EthashBase.EpochLength);
-        if (_logger.IsInfo) _logger.Info($"Etchash initialized with ECIP-1099 transition at block {ecip1099Transition} (epoch {_transitionEpoch})");
+        _epochCalculator = new EtchashEpochCalculator(ecip1099Transition);
+        _cache = new EtchashHintBasedCache(BuildCache);
+        if (_logger.IsInfo) _logger.Info($"Etchash initialized with ECIP-1099 transition at block {ecip1099Transition} (epoch {_epochCalculator.TransitionEpoch})");
     }
-
-    private uint GetEtchashEpoch(long blockNumber) =>
-        blockNumber < _ecip1099Transition
-            ? (uint)(blockNumber / EthashBase.EpochLength)
-            : (_transitionEpoch / 2) + (uint)((blockNumber - _ecip1099Transition) / EtchashEpochLength);
-
-    private static uint GetSeedEpoch(uint dagEpoch, bool ecip1099Active) =>
-        ecip1099Active ? dagEpoch * 2 : dagEpoch;
 
     public void HintRange(Guid guid, long start, long end)
     {
-        uint startEpoch = GetEtchashEpoch(start);
-        uint endEpoch = GetEtchashEpoch(end);
-        bool ecip1099Active = start >= _ecip1099Transition;
-        lock (_lock)
-        {
-            for (uint e = startEpoch; e <= endEpoch && e - startEpoch <= 10; e++)
-            {
-                uint dagEpoch = e;
-                uint seedEpoch = GetSeedEpoch(dagEpoch, ecip1099Active);
-                _cache.TryAdd(seedEpoch, (dagEpoch, Task.Run<IEthashDataSet>(() => new EthashCache(EthashBase.GetCacheSize(dagEpoch), EthashBase.GetSeedHash(seedEpoch).Bytes))));
-            }
-        }
+        _cache.Hint(guid, _epochCalculator.GetCacheEpochs(start, end, EtchashHintBasedCache.MaxHintEpochs));
     }
 
     public bool Validate(BlockHeader header)
     {
-        uint dagEpoch = GetEtchashEpoch(header.Number);
+        EtchashCacheEpoch cacheEpoch = _epochCalculator.GetCacheEpoch(header.Number);
 
-        if (!TryGetDataSet(dagEpoch, header.Number, out var dataSet))
+        if (!TryGetDataSet(cacheEpoch, header.Number, out var dataSet))
         {
-            if (_logger.IsWarn) _logger.Warn($"Etchash cache miss for block {header.Number}, dagEpoch {dagEpoch}");
+            if (_logger.IsWarn) _logger.Warn($"Etchash cache miss for block {header.Number}, dagEpoch {cacheEpoch.DagEpoch}");
             return false;
         }
 
-        ulong dataSize = EthashBase.GetDataSize(dagEpoch);
+        ulong dataSize = EthashBase.GetDataSize(cacheEpoch.DagEpoch);
         var headerHash = Keccak.Compute(new HeaderDecoder().Encode(header, RlpBehaviors.ForSealing).Bytes);
         (_, ValueHash256 result, bool mixHashOk) = EthashBase.Hashimoto(dataSize, dataSet, headerHash, header.MixHash, header.Nonce);
         bool meetsTarget = EthashBase.IsValidPoWResult(mixHashOk, result.Bytes, header.Difficulty);
 
         if (!meetsTarget && _logger.IsWarn)
-            _logger.Warn($"Etchash validation failed for block {header.Number}, dagEpoch {dagEpoch}, difficulty {header.Difficulty}");
+            _logger.Warn($"Etchash validation failed for block {header.Number}, dagEpoch {cacheEpoch.DagEpoch}, difficulty {header.Difficulty}");
 
         return meetsTarget;
     }
 
     public (Hash256, ulong) Mine(BlockHeader header, ulong? startNonce)
     {
-        uint dagEpoch = GetEtchashEpoch(header.Number);
-        bool ecip1099Active = header.Number >= _ecip1099Transition;
-        uint seedEpoch = GetSeedEpoch(dagEpoch, ecip1099Active);
+        EtchashCacheEpoch cacheEpoch = _epochCalculator.GetCacheEpoch(header.Number);
 
-        TryGetDataSet(dagEpoch, header.Number, out var dataSet);
-        dataSet ??= new EthashCache(EthashBase.GetCacheSize(dagEpoch), EthashBase.GetSeedHash(seedEpoch).Bytes);
+        TryGetDataSet(cacheEpoch, header.Number, out var dataSet);
+        dataSet ??= BuildCache(cacheEpoch);
         var headerHash = Keccak.Compute(new HeaderDecoder().Encode(header, RlpBehaviors.ForSealing).Bytes);
         ulong nonce = startNonce ?? (ulong)Random.Shared.NextInt64();
-        ulong dataSize = EthashBase.GetDataSize(dagEpoch);
+        ulong dataSize = EthashBase.GetDataSize(cacheEpoch.DagEpoch);
         while (true)
         {
             (byte[]? mix, ValueHash256 result, bool ok) = EthashBase.Hashimoto(dataSize, dataSet, headerHash, null, nonce);
@@ -100,13 +74,27 @@ internal class Etchash : IEthash
         }
     }
 
-    private bool TryGetDataSet(uint dagEpoch, long blockNumber, out IEthashDataSet dataSet)
+    private bool TryGetDataSet(EtchashCacheEpoch cacheEpoch, long blockNumber, out IEthashDataSet dataSet)
     {
-        bool ecip1099Active = blockNumber >= _ecip1099Transition;
-        uint seedEpoch = GetSeedEpoch(dagEpoch, ecip1099Active);
-        lock (_lock) { if (_cache.TryGetValue(seedEpoch, out var t)) { dataSet = t.DataSet.Result; return true; } }
+        IEthashDataSet? cached = _cache.Get(cacheEpoch);
+        if (cached is not null)
+        {
+            dataSet = cached;
+            return true;
+        }
+
         HintRange(Guid.Empty, blockNumber, blockNumber);
-        lock (_lock) { if (_cache.TryGetValue(seedEpoch, out var t)) { dataSet = t.DataSet.Result; return true; } }
-        dataSet = null!; return false;
+        cached = _cache.Get(cacheEpoch);
+        if (cached is not null)
+        {
+            dataSet = cached;
+            return true;
+        }
+
+        dataSet = null!;
+        return false;
     }
+
+    private static IEthashDataSet BuildCache(EtchashCacheEpoch epoch) =>
+        new EthashCache(EthashBase.GetCacheSize(epoch.DagEpoch), EthashBase.GetSeedHash(epoch.SeedEpoch).Bytes);
 }
