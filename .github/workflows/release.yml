@@ -199,8 +199,12 @@ jobs:
           NETHERMIND_REPO: ${{ inputs.nethermind_repo || 'NethermindEth/nethermind' }}
           NETHERMIND_TAG: ${{ needs.build.outputs.nethermind_tag }}
         run: |
+          # Use the checkout's HEAD, not $GITHUB_SHA — the latter is the workflow
+          # trigger commit (typically main HEAD), which on a historical rebuild
+          # is not the commit the plugin was actually built from.
+          PLUGIN_SHA=$(git rev-parse --short=8 HEAD)
           {
-            echo "Built from plugin ref \`${PLUGIN_REF}\` (commit \`${GITHUB_SHA::8}\`)."
+            echo "Built from plugin ref \`${PLUGIN_REF}\` (commit \`${PLUGIN_SHA}\`)."
             echo
             echo "Bundles include Nethermind from [\`${NETHERMIND_REPO}@${NETHERMIND_TAG}\`](https://github.com/${NETHERMIND_REPO}/releases/tag/${NETHERMIND_TAG})."
           } > RELEASE_NOTES.md
