@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check for Nethermind updates
         id: check
@@ -83,10 +83,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -124,7 +124,7 @@ jobs:
             --output ./publish
 
       - name: Upload plugin artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plugin
           path: |
@@ -157,7 +157,7 @@ jobs:
 
     steps:
       - name: Download plugin artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: plugin
           path: plugin
@@ -196,7 +196,7 @@ jobs:
           zip -r ../nethermind-etc-v${NEW_VERSION}.0-${{ matrix.arch }}.zip .
 
       - name: Upload bundle artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bundle-${{ matrix.arch }}
           path: nethermind-etc-v${{ needs.check-and-update.outputs.new_version }}.0-${{ matrix.arch }}.zip
@@ -209,13 +209,13 @@ jobs:
 
     steps:
       - name: Download plugin artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: plugin
           path: plugin
 
       - name: Download all bundle artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: bundle-*
           path: bundles
@@ -249,7 +249,7 @@ jobs:
           gh release delete "v${NEW_VERSION}.0" --yes --cleanup-tag
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         env:
           NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
           NETHERMIND_SHA: ${{ needs.check-and-update.outputs.nethermind_sha }}
@@ -280,7 +280,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Update version files
         env:
