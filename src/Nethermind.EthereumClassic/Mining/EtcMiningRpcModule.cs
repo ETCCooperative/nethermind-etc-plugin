@@ -21,7 +21,7 @@ internal sealed class EtcMiningRpcModule : IEtcMiningRpcModule
     public EtcMiningRpcModule(IRemoteSealerClient sealerClient, ILogManager logManager)
     {
         _sealerClient = sealerClient;
-        _logger = logManager.GetClassLogger();
+        _logger = logManager.GetClassLogger<EtcMiningRpcModule>();
     }
 
     public ResultWrapper<string[]> eth_getWork()

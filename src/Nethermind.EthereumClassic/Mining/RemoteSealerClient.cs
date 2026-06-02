@@ -39,7 +39,7 @@ internal sealed class RemoteSealerClient : IRemoteSealerClient
         _ethash = ethash;
         _ecip1099Transition = ecip1099Transition;
         _transitionEpoch = (uint)(ecip1099Transition / EtchashMiningHelper.EpochLength);
-        _logger = logManager.GetClassLogger();
+        _logger = logManager.GetClassLogger<RemoteSealerClient>();
     }
 
     public MiningWork? GetWork()

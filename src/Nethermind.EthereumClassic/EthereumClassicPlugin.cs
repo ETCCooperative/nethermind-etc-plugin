@@ -100,7 +100,7 @@ public class EthereumClassicPlugin(
     {
         var (getFromApi, _) = _nethermindApi!.ForProducer;
 
-        IBlockProducerEnv env = getFromApi.BlockProducerEnvFactory.Create();
+        IBlockProducerEnv env = getFromApi.BlockProducerEnvFactory.CreatePersistent();
         return new EtchashBlockProducer(
             env.TxSource,
             env.ChainProcessor,
