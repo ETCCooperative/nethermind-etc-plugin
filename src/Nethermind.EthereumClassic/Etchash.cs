@@ -23,7 +23,7 @@ internal class Etchash : IEthash
 
     public Etchash(ILogManager logManager, long ecip1099Transition)
     {
-        _logger = logManager.GetClassLogger();
+        _logger = logManager.GetClassLogger<Etchash>();
         _epochCalculator = new EtchashEpochCalculator(ecip1099Transition);
         _cache = new EtchashHintBasedCache(BuildCache);
         if (_logger.IsInfo) _logger.Info($"Etchash initialized with ECIP-1099 transition at block {ecip1099Transition} (epoch {_epochCalculator.TransitionEpoch})");

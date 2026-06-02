@@ -26,7 +26,7 @@ internal sealed class RemoteEtchashSealer : ISealer
     {
         _remoteSealerClient = remoteSealerClient;
         _signer = signer;
-        _logger = logManager.GetClassLogger();
+        _logger = logManager.GetClassLogger<RemoteEtchashSealer>();
         _remoteSealerClient.SetOnBlockMined(OnBlockMined);
     }
 

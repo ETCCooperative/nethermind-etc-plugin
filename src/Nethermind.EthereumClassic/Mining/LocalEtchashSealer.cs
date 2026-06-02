@@ -26,7 +26,7 @@ internal sealed class LocalEtchashSealer : ISealer
     {
         _ethash = ethash ?? throw new ArgumentNullException(nameof(ethash));
         _signer = signer ?? throw new ArgumentNullException(nameof(signer));
-        _logger = logManager?.GetClassLogger() ?? throw new ArgumentNullException(nameof(logManager));
+        _logger = logManager?.GetClassLogger<LocalEtchashSealer>() ?? throw new ArgumentNullException(nameof(logManager));
     }
 
     public Address Address => _signer.Address;
