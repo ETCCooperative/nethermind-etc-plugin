@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # When called with a `plugin_ref` input (e.g. to rebuild an old release
           # against a tagged historic snapshot of the source), check out that ref
@@ -54,7 +54,7 @@ jobs:
           echo "Plugin version: $VERSION"
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -75,7 +75,7 @@ jobs:
             --output ./publish
 
       - name: Upload plugin artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plugin
           path: |
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Download plugin artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: plugin
           path: plugin
@@ -135,7 +135,7 @@ jobs:
           zip -r ../nethermind-etc-v${{ needs.build.outputs.version }}-${{ matrix.arch }}.zip .
 
       - name: Upload bundle artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bundle-${{ matrix.arch }}
           path: nethermind-etc-v${{ needs.build.outputs.version }}-${{ matrix.arch }}.zip
@@ -148,7 +148,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Same ref as the build job. If `replace_existing` removes a tag, we
           # want softprops/action-gh-release to recreate it pointing at this
@@ -156,13 +156,13 @@ jobs:
           ref: ${{ inputs.plugin_ref || github.ref }}
 
       - name: Download plugin artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: plugin
           path: plugin
 
       - name: Download all bundle artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: bundle-*
           path: bundles
@@ -211,7 +211,7 @@ jobs:
           cat RELEASE_NOTES.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.build.outputs.version }}
           name: v${{ needs.build.outputs.version }}
