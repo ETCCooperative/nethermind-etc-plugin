@@ -15,6 +15,7 @@ using Nethermind.Consensus;
 using Nethermind.Consensus.Ethash;
 using Nethermind.Consensus.Producers;
 using Nethermind.Consensus.Rewards;
+using Nethermind.Consensus.Validators;
 using Nethermind.Core.Specs;
 using Nethermind.Crypto;
 using Nethermind.EthereumClassic.Config;
@@ -25,6 +26,7 @@ using Nethermind.Logging;
 using Nethermind.Core;
 using Nethermind.Specs.ChainSpecStyle;
 using Nethermind.Synchronization.Peers;
+using Nethermind.TxPool;
 
 namespace Nethermind.EthereumClassic;
 
@@ -39,6 +41,7 @@ public class EthereumClassicPlugin(
     ChainSpec chainSpec,
     IEtcMiningConfig miningConfig,
     IEtcMessConfig messConfig,
+    IEtcValidationConfig validationConfig,
     IKeyStoreConfig keyStoreConfig) : IConsensusPlugin
 {
     public string Name => "Etchash";
@@ -141,7 +144,8 @@ public class EthereumClassicPlugin(
                 p.GothamTransition,
                 p.Ecip1041Transition,
                 miningConfig.Mode,
-                messConfig.Enabled);
+                messConfig.Enabled,
+                validationConfig.ForceSealCheck);
         }
     }
 }
@@ -153,7 +157,8 @@ public class EthereumClassicModule(
     long? gothamTransition,
     long? ecip1041Transition,
     EtcMiningMode miningMode,
-    bool messEnabled) : Module
+    bool messEnabled,
+    bool forceSealCheck) : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
@@ -196,6 +201,24 @@ public class EthereumClassicModule(
                 ctx.Resolve<ITimestamper>()))
             .As<ISealValidator>()
             .SingleInstance();
+
+        // Opt-in full re-validation: re-verify the PoW seal of every processed block. The core registers
+        // IBlockValidator -> BlockValidator, whose intake path (full sync, the Era1 importer, and the
+        // fast-blocks bodies download) never calls ISealValidator.ValidateSeal. This overrides it with a
+        // subclass that does. Plugin modules load after core, so this registration wins — same mechanism as the
+        // ISealValidator override above.
+        if (forceSealCheck)
+        {
+            builder.Register(ctx => new SealValidatingBlockValidator(
+                    ctx.Resolve<ITxValidator>(),
+                    ctx.Resolve<IHeaderValidator>(),
+                    ctx.Resolve<IUnclesValidator>(),
+                    ctx.Resolve<ISpecProvider>(),
+                    ctx.Resolve<ISealValidator>(),
+                    ctx.Resolve<ILogManager>()))
+                .As<IBlockValidator>()
+                .SingleInstance();
+        }
 
         // Register mining components based on mode
         if (miningMode == EtcMiningMode.Remote)
