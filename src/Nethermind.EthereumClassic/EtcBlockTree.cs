@@ -6,6 +6,7 @@
 
 using Autofac.Features.AttributeFilters;
 using Nethermind.Blockchain;
+using Nethermind.Blockchain.BlockAccessLists;
 using Nethermind.Blockchain.Blocks;
 using Nethermind.Blockchain.Headers;
 using Nethermind.Blockchain.Synchronization;
@@ -13,7 +14,6 @@ using Nethermind.Core;
 using Nethermind.Core.Crypto;
 using Nethermind.Core.Specs;
 using Nethermind.Db;
-using Nethermind.Db.Blooms;
 using Nethermind.Int256;
 using Nethermind.Logging;
 using Nethermind.State.Repositories;
@@ -33,12 +33,11 @@ internal class EtcBlockTree : BlockTree
         IBlockAccessListStore? balStore,
         IChainLevelInfoRepository? chainLevelInfoRepository,
         ISpecProvider? specProvider,
-        IBloomStorage? bloomStorage,
         ISyncConfig? syncConfig,
         ILogManager? logManager,
         long genesisBlockNumber = 0)
         : base(blockStore, headerDb, blockInfoDb, metadataDb, badBlockStore,
-            balStore, chainLevelInfoRepository, specProvider, bloomStorage, syncConfig,
+            balStore, chainLevelInfoRepository, specProvider, syncConfig,
             logManager, genesisBlockNumber)
     {
     }

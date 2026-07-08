@@ -99,32 +99,6 @@ public class EthereumClassicPlugin(
     }
     public Task InitRpcModules() => Task.CompletedTask;
 
-    public IBlockProducer InitBlockProducer()
-    {
-        var (getFromApi, _) = _nethermindApi!.ForProducer;
-
-        IBlockProducerEnv env = getFromApi.BlockProducerEnvFactory.CreatePersistent();
-        return new EtchashBlockProducer(
-            env.TxSource,
-            env.ChainProcessor,
-            env.ReadOnlyStateProvider,
-            getFromApi.BlockTree,
-            getFromApi.Timestamper,
-            getFromApi.SpecProvider,
-            getFromApi.Config<IBlocksConfig>(),
-            _nethermindApi.Context.Resolve<ISealer>(),
-            _nethermindApi.Context.Resolve<IDifficultyCalculator>(),
-            getFromApi.LogManager);
-    }
-
-    public IBlockProducerRunner InitBlockProducerRunner(IBlockProducer blockProducer)
-    {
-        return new StandardBlockProducerRunner(
-            _nethermindApi!.ManualBlockProductionTrigger,
-            _nethermindApi.BlockTree,
-            blockProducer);
-    }
-
     public IModule? Module
     {
         get
@@ -200,6 +174,14 @@ public class EthereumClassicModule(
                 ctx.Resolve<IEthash>(),
                 ctx.Resolve<ITimestamper>()))
             .As<ISealValidator>()
+            .SingleInstance();
+
+        // Block production. Since Nethermind 1.39.0 the block producer is wired via
+        // DI-registered factories instead of the removed IConsensusPlugin.InitBlockProducer /
+        // InitBlockProducerRunner hooks. Resolved lazily and only after block production starts.
+        builder.RegisterType<EtchashBlockProducerFactory>()
+            .As<IBlockProducerFactory>()
+            .As<IBlockProducerRunnerFactory>()
             .SingleInstance();
 
         // Opt-in full re-validation: re-verify the PoW seal of every processed block. The core registers
