@@ -3,24 +3,30 @@
 
 using System;
 using System.Buffers.Binary;
+using Nethermind.Core;
 using Nethermind.Core.Crypto;
 using Nethermind.Core.Extensions;
+using Nethermind.Int256;
 using Nethermind.JsonRpc;
 using Nethermind.Logging;
 
 namespace Nethermind.EthereumClassic.Mining;
 
 /// <summary>
-/// Implementation of eth_getWork and eth_submitWork for Ethereum Classic.
+/// Implementation of the historical getwork mining RPC surface for Ethereum Classic:
+/// eth_getWork, eth_submitWork, eth_submitHashrate, eth_hashrate and eth_mining.
 /// </summary>
 internal sealed class EtcMiningRpcModule : IEtcMiningRpcModule
 {
     private readonly IRemoteSealerClient _sealerClient;
+    private readonly ITimestamper _timestamper;
+    private readonly MiningHashrateTracker _hashrates = new();
     private readonly ILogger _logger;
 
-    public EtcMiningRpcModule(IRemoteSealerClient sealerClient, ILogManager logManager)
+    public EtcMiningRpcModule(IRemoteSealerClient sealerClient, ITimestamper timestamper, ILogManager logManager)
     {
         _sealerClient = sealerClient;
+        _timestamper = timestamper;
         _logger = logManager.GetClassLogger<EtcMiningRpcModule>();
     }
 
@@ -78,5 +84,32 @@ internal sealed class EtcMiningRpcModule : IEtcMiningRpcModule
         }
 
         return ResultWrapper<bool>.Success(accepted);
+    }
+
+    public ResultWrapper<bool> eth_submitHashrate(UInt256 hashRate, string id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return ResultWrapper<bool>.Fail("Invalid id: must not be empty", ErrorCodes.InvalidParams);
+        }
+
+        _hashrates.Submit(id, hashRate, _timestamper.UnixTime.MillisecondsLong);
+
+        if (_logger.IsTrace) _logger.Trace($"eth_submitHashrate: id={id}, rate={hashRate}");
+
+        return ResultWrapper<bool>.Success(true);
+    }
+
+    public ResultWrapper<UInt256> eth_hashrate()
+    {
+        UInt256 total = _hashrates.GetTotal(_timestamper.UnixTime.MillisecondsLong);
+        return ResultWrapper<UInt256>.Success(total);
+    }
+
+    public ResultWrapper<bool> eth_mining()
+    {
+        // This module is only registered in EtcMiningMode.Remote, where the block producer
+        // is running and continuously hands work to external miners, so mining is active.
+        return ResultWrapper<bool>.Success(true);
     }
 }
