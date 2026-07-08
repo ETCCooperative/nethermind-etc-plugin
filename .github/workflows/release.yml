@@ -20,6 +20,11 @@ on:
         type: boolean
         required: false
         default: false
+      prerelease:
+        description: 'Publish as a pre-release. Uncheck to cut a stable release.'
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   build:
@@ -221,3 +226,4 @@ jobs:
             SHA256SUMS
           body_path: RELEASE_NOTES.md
           draft: false
+          prerelease: ${{ inputs.prerelease }}

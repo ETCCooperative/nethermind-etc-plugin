@@ -267,6 +267,7 @@ jobs:
 
             [Nethermind ${{ needs.check-and-update.outputs.new_version }} Release Notes](https://github.com/NethermindEth/nethermind/releases/tag/${{ needs.check-and-update.outputs.new_version }})
           draft: false
+          prerelease: true
 
   create-pr-on-failure:
     needs: [check-and-update, build, create-bundles, release]
