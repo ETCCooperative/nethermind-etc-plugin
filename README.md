@@ -35,6 +35,32 @@ cp configs/*.cfg /path/to/nethermind/configs/
 ./nethermind --Init.ChainSpecPath=chainspecs/classic.json
 ```
 
+## Mining (PoW)
+
+Set the mining mode via `EtcMining.Mode`:
+
+| Mode | Description |
+|------|-------------|
+| `None` | Mining disabled (default). |
+| `Remote` | External miners via the historical getwork protocol (`eth_getWork` / `eth_submitWork`). |
+| `Local` | Built-in CPU mining. |
+
+Mining also requires `Mining.Enabled = true` and a `KeyStore.BlockAuthorAccount` (the coinbase that receives block rewards).
+
+### Mining JSON-RPC methods
+
+In `Remote` mode the plugin exposes the classic getwork mining RPC surface under the `eth` namespace (enabled by default):
+
+| Method | Description |
+|--------|-------------|
+| `eth_getWork` | Returns `[powHash, seedHash, target, blockNumber]` for external miners. |
+| `eth_submitWork` | Submits a solution `(nonce, powHash, mixDigest)`; returns `true` if accepted. |
+| `eth_submitHashrate` | Records a miner's reported hashrate `(hashRate, id)`; returns `true`. |
+| `eth_hashrate` | Returns the aggregated hashrate reported by external miners (each report expires ~10s after its last submission). |
+| `eth_mining` | Returns whether the node is mining. |
+
+These methods are only registered in `Remote` mode; in `None` / `Local` they are not available.
+
 ## Build from Source
 
 ```bash
