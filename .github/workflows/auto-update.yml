@@ -94,18 +94,7 @@ jobs:
         env:
           NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
           CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
-        run: |
-          echo "Updating from $CURRENT_VERSION to $NEW_VERSION"
-
-          # Update Directory.Packages.props
-          sed -i "s/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$CURRENT_VERSION\"/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$NEW_VERSION\"/" Directory.Packages.props
-
-          # Update csproj Version (append .0 for plugin version)
-          sed -i "s/<Version>$CURRENT_VERSION.0<\/Version>/<Version>$NEW_VERSION.0<\/Version>/" src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
-
-          echo "Files updated:"
-          grep -n "Nethermind.ReferenceAssemblies" Directory.Packages.props
-          grep -n "<Version>" src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+        run: scripts/update-nethermind-version.sh "$CURRENT_VERSION" "$NEW_VERSION"
 
       - name: Restore dependencies
         run: dotnet restore
@@ -287,12 +276,7 @@ jobs:
         env:
           NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
           CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
-        run: |
-          # Update Directory.Packages.props
-          sed -i "s/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$CURRENT_VERSION\"/Include=\"Nethermind.ReferenceAssemblies\" Version=\"$NEW_VERSION\"/" Directory.Packages.props
-
-          # Update csproj Version (append .0 for plugin version)
-          sed -i "s/<Version>$CURRENT_VERSION.0<\/Version>/<Version>$NEW_VERSION.0<\/Version>/" src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+        run: scripts/update-nethermind-version.sh "$CURRENT_VERSION" "$NEW_VERSION"
 
       - name: Create PR branch and push
         env:
@@ -340,7 +324,9 @@ jobs:
 
           ### Changes made
 
-          - \`Directory.Packages.props\`: Nethermind.ReferenceAssemblies → $NEW_VERSION
+          - \`Directory.Packages.props\`: Nethermind.ReferenceAssemblies → $NEW_VERSION,
+            plus any shared dependency realigned to what Nethermind $NEW_VERSION was built
+            against (see the diff)
           - \`Nethermind.EthereumClassic.csproj\`: Version → $NEW_VERSION.0
 
           ### Next steps
