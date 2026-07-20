@@ -3,23 +3,28 @@ set -euo pipefail
 
 # Integration test for Nethermind ETC plugin
 # Usage: ./scripts/integration-test.sh <path-to-nethermind-dir>
+#
+# Runs the node once per mining mode: Manual (evm_mine-driven, deterministic
+# heights) and Remote (self-triggering getwork surface).
 
 NETHERMIND_DIR="${1:?Usage: $0 <path-to-nethermind-dir>}"
 RPC_URL="http://127.0.0.1:8545"
 STARTUP_TIMEOUT=120
 NETHERMIND_PID=""
+NETHERMIND_LOG=""
 PASSED=0
 FAILED=0
-TOTAL=5
+TOTAL=8
 
-cleanup() {
+stop_node() {
     if [ -n "$NETHERMIND_PID" ] && kill -0 "$NETHERMIND_PID" 2>/dev/null; then
         echo "Stopping Nethermind (PID $NETHERMIND_PID)..."
         kill "$NETHERMIND_PID" 2>/dev/null || true
         wait "$NETHERMIND_PID" 2>/dev/null || true
     fi
+    NETHERMIND_PID=""
 }
-trap cleanup EXIT
+trap stop_node EXIT
 
 rpc_call() {
     local method="$1"
@@ -66,8 +71,11 @@ mine_and_wait() {
     return 1
 }
 
-# --- Start Nethermind ---
-echo "Starting Nethermind from $NETHERMIND_DIR with config test-mining..."
+# Extract the Nth 0x-prefixed field of the eth_getWork result
+# (1 = powHash, 2 = seedHash, 3 = target, 4 = blockNumber)
+getwork_field() {
+    rpc_call "eth_getWork" | grep -o '0x[0-9a-f]*' | sed -n "${1}p"
+}
 
 NETHERMIND_BIN="$NETHERMIND_DIR/nethermind"
 if [ ! -x "$NETHERMIND_BIN" ]; then
@@ -80,43 +88,59 @@ if [ ! -x "$NETHERMIND_BIN" ]; then
     exit 1
 fi
 
-"$NETHERMIND_BIN" --config test-mining --datadir "$NETHERMIND_DIR/data" \
-    > "$NETHERMIND_DIR/nethermind-test.log" 2>&1 &
-NETHERMIND_PID=$!
-echo "Nethermind started with PID $NETHERMIND_PID"
+# start_node <name> [extra CLI args...] - fresh datadir and log per phase
+start_node() {
+    local name="$1"
+    shift
+    NETHERMIND_LOG="$NETHERMIND_DIR/nethermind-test-$name.log"
+    echo ""
+    echo "Starting Nethermind from $NETHERMIND_DIR with config test-mining ($name phase)..."
+    "$NETHERMIND_BIN" --config test-mining --datadir "$NETHERMIND_DIR/data-$name" "$@" \
+        > "$NETHERMIND_LOG" 2>&1 &
+    NETHERMIND_PID=$!
+    echo "Nethermind started with PID $NETHERMIND_PID"
+    wait_for_rpc
+}
 
-# --- Wait for JSON-RPC to be ready ---
-echo "Waiting for JSON-RPC to be ready (timeout ${STARTUP_TIMEOUT}s)..."
-START_TIME=$(date +%s)
-while true; do
-    ELAPSED=$(( $(date +%s) - START_TIME ))
-    if [ "$ELAPSED" -ge "$STARTUP_TIMEOUT" ]; then
-        echo "ERROR: Nethermind did not start within ${STARTUP_TIMEOUT}s"
-        echo "--- Last 50 lines of log ---"
-        tail -50 "$NETHERMIND_DIR/nethermind-test.log" 2>/dev/null || true
-        exit 1
-    fi
+wait_for_rpc() {
+    echo "Waiting for JSON-RPC to be ready (timeout ${STARTUP_TIMEOUT}s)..."
+    local start_time elapsed result
+    start_time=$(date +%s)
+    while true; do
+        elapsed=$(( $(date +%s) - start_time ))
+        if [ "$elapsed" -ge "$STARTUP_TIMEOUT" ]; then
+            echo "ERROR: Nethermind did not start within ${STARTUP_TIMEOUT}s"
+            echo "--- Last 50 lines of log ---"
+            tail -50 "$NETHERMIND_LOG" 2>/dev/null || true
+            exit 1
+        fi
 
-    if ! kill -0 "$NETHERMIND_PID" 2>/dev/null; then
-        echo "ERROR: Nethermind process exited unexpectedly"
-        echo "--- Last 50 lines of log ---"
-        tail -50 "$NETHERMIND_DIR/nethermind-test.log" 2>/dev/null || true
-        exit 1
-    fi
+        if ! kill -0 "$NETHERMIND_PID" 2>/dev/null; then
+            echo "ERROR: Nethermind process exited unexpectedly"
+            echo "--- Last 50 lines of log ---"
+            tail -50 "$NETHERMIND_LOG" 2>/dev/null || true
+            exit 1
+        fi
 
-    RESULT=$(rpc_call "net_version" 2>/dev/null || true)
-    if echo "$RESULT" | grep -q '"result"'; then
-        echo "JSON-RPC is ready (took ${ELAPSED}s)"
-        break
-    fi
+        result=$(rpc_call "net_version" 2>/dev/null || true)
+        if echo "$result" | grep -q '"result"'; then
+            echo "JSON-RPC is ready (took ${elapsed}s)"
+            break
+        fi
 
-    sleep 2
-done
+        sleep 2
+    done
+}
+
+# ===========================================================================
+# Manual mode: blocks are produced only on evm_mine, heights are deterministic
+# ===========================================================================
+start_node "manual"
 
 # === Test 1: Plugin loaded ===
 echo ""
 echo "Test 1: Plugin loaded (Etchash in logs)"
-if grep -qi "etchash\|ethereumclassic" "$NETHERMIND_DIR/nethermind-test.log"; then
+if grep -qi "etchash\|ethereumclassic" "$NETHERMIND_LOG"; then
     pass "ETC plugin loaded"
 else
     fail "ETC plugin not found in logs"
@@ -183,6 +207,47 @@ else
     fail "Block missing PoW fields. miner=$HAS_MINER nonce=$HAS_NONCE mixHash=$HAS_MIX_HASH difficulty=$HAS_DIFFICULTY"
     echo "  Block data: $BLOCK_RESULT"
 fi
+
+stop_node
+
+# ===========================================================================
+# Remote mode: production self-triggers and serves work to external miners
+# ===========================================================================
+start_node "remote" --EtcMining.Mode Remote --EtcMining.WorkRefreshSeconds 2
+
+# === Test 6: eth_getWork serves work without any evm_mine ===
+echo ""
+echo "Test 6: eth_getWork serves work immediately (no evm_mine)"
+GETWORK_RESULT=$(rpc_call "eth_getWork")
+if echo "$GETWORK_RESULT" | grep -q '"result":\['; then
+    pass "eth_getWork returned a work package"
+else
+    fail "eth_getWork returned no work: $GETWORK_RESULT"
+fi
+
+# === Test 7: work template is refreshed periodically ===
+echo ""
+echo "Test 7: powHash rotates with the work refresh"
+POW_HASH_BEFORE=$(getwork_field 1)
+sleep 3
+POW_HASH_AFTER=$(getwork_field 1)
+if [ -n "$POW_HASH_BEFORE" ] && [ -n "$POW_HASH_AFTER" ] && [ "$POW_HASH_BEFORE" != "$POW_HASH_AFTER" ]; then
+    pass "powHash rotated ($POW_HASH_BEFORE -> $POW_HASH_AFTER)"
+else
+    fail "powHash did not rotate within the refresh interval (before=$POW_HASH_BEFORE after=$POW_HASH_AFTER)"
+fi
+
+# === Test 8: eth_mining reports true ===
+echo ""
+echo "Test 8: eth_mining is true in Remote mode"
+MINING_RESULT=$(rpc_call "eth_mining")
+if echo "$MINING_RESULT" | grep -q '"result":true'; then
+    pass "eth_mining is true"
+else
+    fail "eth_mining did not return true: $MINING_RESULT"
+fi
+
+stop_node
 
 # === Summary ===
 echo ""

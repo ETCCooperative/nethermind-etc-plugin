@@ -6,4 +6,6 @@ namespace Nethermind.EthereumClassic.Config;
 public class EtcMiningConfig : IEtcMiningConfig
 {
     public EtcMiningMode Mode { get; set; } = EtcMiningMode.None;
+
+    public int WorkRefreshSeconds { get; set; } = 4;
 }

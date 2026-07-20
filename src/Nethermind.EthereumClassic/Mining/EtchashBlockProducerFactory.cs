@@ -1,12 +1,15 @@
 // SPDX-FileCopyrightText: 2025 Ethereum Classic Community
 // SPDX-License-Identifier: Apache-2.0
 
+using System;
 using Nethermind.Blockchain;
 using Nethermind.Config;
 using Nethermind.Consensus;
+using Nethermind.Consensus.Processing;
 using Nethermind.Consensus.Producers;
 using Nethermind.Core;
 using Nethermind.Core.Specs;
+using Nethermind.EthereumClassic.Config;
 using Nethermind.Logging;
 
 namespace Nethermind.EthereumClassic.Mining;
@@ -31,6 +34,8 @@ internal sealed class EtchashBlockProducerFactory(
     ISealer sealer,
     IDifficultyCalculator difficultyCalculator,
     IManualBlockProductionTrigger manualBlockProductionTrigger,
+    IEtcMiningConfig miningConfig,
+    IBlockProcessingQueue blockProcessingQueue,
     ILogManager logManager)
     : IBlockProducerFactory, IBlockProducerRunnerFactory
 {
@@ -50,6 +55,24 @@ internal sealed class EtchashBlockProducerFactory(
             logManager);
     }
 
-    public IBlockProducerRunner InitBlockProducerRunner(IBlockProducer blockProducer) =>
-        new StandardBlockProducerRunner(manualBlockProductionTrigger, blockTree, blockProducer);
+    /// <summary>
+    /// In <c>Remote</c> mode production self-triggers (head change and periodic refresh)
+    /// so <c>eth_getWork</c> continuously serves fresh work. <c>Manual</c> mode produces
+    /// blocks only on <c>evm_mine</c>, which
+    /// <c>scripts/integration-test.sh</c> relies on for its exact block-height asserts.
+    /// </summary>
+    public IBlockProducerRunner InitBlockProducerRunner(IBlockProducer blockProducer)
+    {
+        if (miningConfig.Mode == EtcMiningMode.Remote)
+        {
+            BuildBlocksContinuously workTrigger = new(
+                blockProcessingQueue,
+                blockTree,
+                TimeSpan.FromSeconds(miningConfig.WorkRefreshSeconds),
+                logManager);
+            return new EtchashBlockProducerRunner(workTrigger, manualBlockProductionTrigger, blockTree, blockProducer);
+        }
+
+        return new StandardBlockProducerRunner(manualBlockProductionTrigger, blockTree, blockProducer);
+    }
 }

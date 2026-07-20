@@ -11,4 +11,9 @@ public interface IEtcMiningConfig : IConfig
         Description = "Mining mode: None (disabled), Remote (eth_getWork/submitWork), Manual (CPU sealing on evm_mine only, for dev/test chains).",
         DefaultValue = "None")]
     EtcMiningMode Mode { get; set; }
+
+    [ConfigItem(
+        Description = "Seconds between remote mining work refreshes, so transactions arriving between blocks get picked up.",
+        DefaultValue = "4")]
+    int WorkRefreshSeconds { get; set; }
 }
