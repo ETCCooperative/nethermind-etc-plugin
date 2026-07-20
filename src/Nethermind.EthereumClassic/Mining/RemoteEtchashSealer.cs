@@ -4,6 +4,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Nethermind.Blockchain;
 using Nethermind.Consensus;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
@@ -19,13 +20,15 @@ internal sealed class RemoteEtchashSealer : ISealer
 {
     private readonly IRemoteSealerClient _remoteSealerClient;
     private readonly ISigner _signer;
+    private readonly IBlockTree _blockTree;
     private readonly ILogger _logger;
     private readonly PendingRemoteSealRegistry<Block> _pending = new();
 
-    public RemoteEtchashSealer(IRemoteSealerClient remoteSealerClient, ISigner signer, ILogManager logManager)
+    public RemoteEtchashSealer(IRemoteSealerClient remoteSealerClient, ISigner signer, IBlockTree blockTree, ILogManager logManager)
     {
         _remoteSealerClient = remoteSealerClient;
         _signer = signer;
+        _blockTree = blockTree;
         _logger = logManager.GetClassLogger<RemoteEtchashSealer>();
         _remoteSealerClient.SetOnBlockMined(OnBlockMined);
     }
@@ -46,10 +49,27 @@ internal sealed class RemoteEtchashSealer : ISealer
         return pendingSeal.Task;
     }
 
+    /// <summary>
+    /// A solution for superseded work (its template was replaced by a work refresh or a
+    /// competing <c>SealBlock</c> call) no longer completes the pending seal, but if it
+    /// still extends the current head it is a perfectly valid block, so it is suggested
+    /// to the block tree directly — mirroring geth's remote sealer, which accepts
+    /// solutions for stale work packages instead of discarding the miner's effort.
+    /// </summary>
     private void OnBlockMined(Block sealedBlock)
     {
-        if (!_pending.TryCompleteActive(sealedBlock) && _logger.IsDebug)
+        if (_pending.TryCompleteActive(sealedBlock))
+            return;
+
+        if (sealedBlock.ParentHash == _blockTree.Head?.Hash)
+        {
+            if (_logger.IsInfo) _logger.Info($"Remote mining result for superseded work still extends the head, suggesting block {sealedBlock.Number}");
+            _blockTree.SuggestBlock(sealedBlock);
+        }
+        else if (_logger.IsDebug)
+        {
             _logger.Debug($"Ignoring stale remote mining result for block {sealedBlock.Number}");
+        }
     }
 
     private static void ValidateBlock(Block block)

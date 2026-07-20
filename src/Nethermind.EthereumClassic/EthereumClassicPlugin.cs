@@ -220,6 +220,7 @@ public class EthereumClassicModule(
             builder.Register(ctx => new RemoteEtchashSealer(
                     ctx.Resolve<IRemoteSealerClient>(),
                     ctx.Resolve<ISigner>(),
+                    ctx.Resolve<IBlockTree>(),
                     ctx.Resolve<ILogManager>()))
                 .As<ISealer>()
                 .SingleInstance();
