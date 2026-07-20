@@ -44,7 +44,7 @@ internal sealed class EtcMiningRpcModule : IEtcMiningRpcModule
             work.PowHash.ToString(),
             work.SeedHash.ToString(),
             work.Target.ToString(),
-            work.BlockNumber.ToHexString(skipLeadingZeros: false)
+            work.BlockNumber.ToHexString(skipLeadingZeros: true)
         ];
 
         return ResultWrapper<string[]>.Success(result);

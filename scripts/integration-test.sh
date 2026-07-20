@@ -14,7 +14,7 @@ NETHERMIND_PID=""
 NETHERMIND_LOG=""
 PASSED=0
 FAILED=0
-TOTAL=8
+TOTAL=9
 
 stop_node() {
     if [ -n "$NETHERMIND_PID" ] && kill -0 "$NETHERMIND_PID" 2>/dev/null; then
@@ -237,9 +237,19 @@ else
     fail "powHash did not rotate within the refresh interval (before=$POW_HASH_BEFORE after=$POW_HASH_AFTER)"
 fi
 
-# === Test 8: eth_mining reports true ===
+# === Test 8: block number is minimal-length hex ===
 echo ""
-echo "Test 8: eth_mining is true in Remote mode"
+echo "Test 8: eth_getWork block number is minimal-length hex"
+BLOCK_NUM_FIELD=$(getwork_field 4)
+if echo "$BLOCK_NUM_FIELD" | grep -Eq '^0x[1-9a-f][0-9a-f]*$'; then
+    pass "Block number field is $BLOCK_NUM_FIELD"
+else
+    fail "Block number field is not minimal-length hex: $BLOCK_NUM_FIELD"
+fi
+
+# === Test 9: eth_mining reports true ===
+echo ""
+echo "Test 9: eth_mining is true in Remote mode"
 MINING_RESULT=$(rpc_call "eth_mining")
 if echo "$MINING_RESULT" | grep -q '"result":true'; then
     pass "eth_mining is true"
