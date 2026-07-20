@@ -5,7 +5,8 @@ set -euo pipefail
 # Usage: ./scripts/integration-test.sh <path-to-nethermind-dir>
 #
 # Runs the node once per mining mode: Manual (evm_mine-driven, deterministic
-# heights) and Remote (self-triggering getwork surface).
+# heights), Remote (self-triggering getwork surface), and Local (continuous
+# CPU mining).
 
 NETHERMIND_DIR="${1:?Usage: $0 <path-to-nethermind-dir>}"
 RPC_URL="http://127.0.0.1:8545"
@@ -14,7 +15,7 @@ NETHERMIND_PID=""
 NETHERMIND_LOG=""
 PASSED=0
 FAILED=0
-TOTAL=9
+TOTAL=10
 
 stop_node() {
     if [ -n "$NETHERMIND_PID" ] && kill -0 "$NETHERMIND_PID" 2>/dev/null; then
@@ -255,6 +256,25 @@ if echo "$MINING_RESULT" | grep -q '"result":true'; then
     pass "eth_mining is true"
 else
     fail "eth_mining did not return true: $MINING_RESULT"
+fi
+
+stop_node
+
+# ===========================================================================
+# Local mode: continuous CPU mining, the chain advances by itself
+# ===========================================================================
+start_node "local" --EtcMining.Mode Local
+
+# === Test 10: chain advances with no RPC nudges ===
+echo ""
+echo "Test 10: Local mode mines continuously (no evm_mine)"
+BLOCK_NUM_BEFORE=$(rpc_call "eth_blockNumber" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+sleep 5
+BLOCK_NUM_AFTER=$(rpc_call "eth_blockNumber" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+if [ -n "$BLOCK_NUM_AFTER" ] && [ "$BLOCK_NUM_AFTER" != "$BLOCK_NUM_BEFORE" ]; then
+    pass "Chain advanced by itself ($BLOCK_NUM_BEFORE -> $BLOCK_NUM_AFTER)"
+else
+    fail "Chain did not advance (before=$BLOCK_NUM_BEFORE after=$BLOCK_NUM_AFTER)"
 fi
 
 stop_node

@@ -9,11 +9,12 @@ using Nethermind.Consensus.Producers;
 namespace Nethermind.EthereumClassic.Mining;
 
 /// <summary>
-/// Runner for <c>EtcMining.Mode=Remote</c>. Builds the first block template on start so
-/// <c>eth_getWork</c> serves work without requiring an initial <c>evm_mine</c>, and routes
-/// manual production requests (<c>evm_mine</c>) through
-/// <see cref="BuildBlocksContinuously"/> so they cancel the in-flight remote seal instead
-/// of stalling on the producer lock.
+/// Runner for the self-triggering modes (<c>EtcMining.Mode</c> <c>Remote</c> and
+/// <c>Local</c>). Builds the first block template on start so mining begins — and
+/// <c>eth_getWork</c> serves work — without requiring an initial <c>evm_mine</c>, and
+/// routes manual production requests (<c>evm_mine</c>) through
+/// <see cref="BuildBlocksContinuously"/> so they force a template rebuild by cancelling
+/// the in-flight seal instead of stalling on the producer lock.
 /// </summary>
 internal sealed class EtchashBlockProducerRunner(
     BuildBlocksContinuously workTrigger,

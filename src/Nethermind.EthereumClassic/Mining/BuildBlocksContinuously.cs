@@ -17,20 +17,22 @@ using Timer = System.Timers.Timer;
 namespace Nethermind.EthereumClassic.Mining;
 
 /// <summary>
-/// Continuously re-arms Etchash block production the way geth's remote sealer does:
+/// Continuously re-arms Etchash block production the way geth's miner does:
 /// a new block template is built once the processing queue drains after a chain-head
 /// change, and the current template is refreshed periodically so transactions arriving
 /// between blocks get picked up. Every (re)trigger cancels the previous in-flight
-/// production, which releases the pending remote seal held by
-/// <see cref="RemoteEtchashSealer"/> so a fresh template can be built — without the
-/// cancellation, <c>BlockProducerBase</c> would hold its production lock until an
-/// external miner submits a solution and block production would wedge on the first
-/// template forever. Adapted from the <c>BuildBlocksWhenProcessingFinished</c> trigger
-/// that upstream Nethermind removed together with Ethash mining in 2022, except that
-/// production starts armed: on an idle chain nothing fires <c>ProcessingQueueEmpty</c>
-/// after startup, and remote mining must serve work immediately. The when-to-build
-/// policy lives in <see cref="ContinuousBuildScheduler"/>; this class wires it to the
-/// Nethermind events and owns the production cancellation chain and the refresh timer.
+/// production, which releases the pending seal so a fresh template can be built — in
+/// <c>Remote</c> mode the seal held by <see cref="RemoteEtchashSealer"/>, without which
+/// <c>BlockProducerBase</c> would hold its production lock until an external miner
+/// submits a solution and block production would wedge on the first template forever;
+/// in <c>Local</c> mode the CPU search of <see cref="LocalEtchashSealer"/>, which loses
+/// no progress on restart because the PoW nonce search is memoryless. Adapted from the
+/// <c>BuildBlocksWhenProcessingFinished</c> trigger that upstream Nethermind removed
+/// together with Ethash mining in 2022, except that production starts armed: on an idle
+/// chain nothing fires <c>ProcessingQueueEmpty</c> after startup, and mining must start
+/// (and remote mining must serve work) immediately. The when-to-build policy lives in
+/// <see cref="ContinuousBuildScheduler"/>; this class wires it to the Nethermind events
+/// and owns the production cancellation chain and the refresh timer.
 /// </summary>
 internal sealed class BuildBlocksContinuously : IManualBlockProductionTrigger, IDisposable
 {

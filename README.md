@@ -42,10 +42,13 @@ Set the mining mode via `EtcMining.Mode`:
 | Mode | Description |
 |------|-------------|
 | `None` | Mining disabled (default). |
-| `Remote` | External miners via the historical getwork protocol (`eth_getWork` / `eth_submitWork`). |
+| `Remote` | External miners via the historical getwork protocol (`eth_getWork` / `eth_submitWork`). Block templates are built continuously: on startup, after each chain-head change, and every `EtcMining.WorkRefreshSeconds` (default 4) so pending transactions get picked up. |
+| `Local` | Continuous built-in CPU mining, driven by the same template refresh cycle as `Remote`. |
 | `Manual` | CPU sealing triggered only by `evm_mine` (requires the `Evm` JSON-RPC module), for dev/test chains that need deterministic block heights. |
 
 Mining also requires `Mining.Enabled = true` and a `KeyStore.BlockAuthorAccount` (the coinbase that receives block rewards).
+
+In `Remote` and `Local` modes, `evm_mine` (if the `Evm` JSON-RPC module is enabled) does not mine a block itself; it forces an immediate template rebuild instead of waiting for the next refresh.
 
 ### Mining JSON-RPC methods
 
@@ -59,7 +62,7 @@ In `Remote` mode the plugin exposes the classic getwork mining RPC surface under
 | `eth_hashrate` | Returns the aggregated hashrate reported by external miners (each report expires ~10s after its last submission). |
 | `eth_mining` | Returns whether the node is mining. |
 
-These methods are only registered in `Remote` mode; in `None` / `Manual` they are not available.
+These methods are only registered in `Remote` mode; in `None` / `Local` / `Manual` they are not available.
 
 ## Build from Source
 

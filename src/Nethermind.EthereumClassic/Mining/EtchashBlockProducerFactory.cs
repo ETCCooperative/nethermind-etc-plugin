@@ -22,7 +22,7 @@ namespace Nethermind.EthereumClassic.Mining;
 /// favour of DI-registered <see cref="IBlockProducerFactory"/> /
 /// <see cref="IBlockProducerRunnerFactory"/> (mirrors <c>EthashBlockProducerFactory</c> /
 /// <c>NethDevBlockProducerFactory</c>). Only resolved once block production actually
-/// starts, so <see cref="ISealer"/> (registered only for EtcMining.Mode Remote/Manual) is
+/// starts, so <see cref="ISealer"/> (registered for every EtcMining.Mode except None) is
 /// present whenever this factory is constructed.
 /// </summary>
 internal sealed class EtchashBlockProducerFactory(
@@ -56,14 +56,15 @@ internal sealed class EtchashBlockProducerFactory(
     }
 
     /// <summary>
-    /// In <c>Remote</c> mode production self-triggers (head change and periodic refresh)
-    /// so <c>eth_getWork</c> continuously serves fresh work. <c>Manual</c> mode produces
-    /// blocks only on <c>evm_mine</c>, which
+    /// In <c>Remote</c> and <c>Local</c> modes production self-triggers (head change and
+    /// periodic refresh): <c>Remote</c> continuously serves fresh work to
+    /// <c>eth_getWork</c>, <c>Local</c> continuously CPU-mines. <c>Manual</c> mode
+    /// produces blocks only on <c>evm_mine</c>, which
     /// <c>scripts/integration-test.sh</c> relies on for its exact block-height asserts.
     /// </summary>
     public IBlockProducerRunner InitBlockProducerRunner(IBlockProducer blockProducer)
     {
-        if (miningConfig.Mode == EtcMiningMode.Remote)
+        if (miningConfig.Mode is EtcMiningMode.Remote or EtcMiningMode.Local)
         {
             BuildBlocksContinuously workTrigger = new(
                 blockProcessingQueue,
