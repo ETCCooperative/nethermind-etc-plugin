@@ -220,11 +220,12 @@ public class EthereumClassicModule(
             builder.Register(ctx => new RemoteEtchashSealer(
                     ctx.Resolve<IRemoteSealerClient>(),
                     ctx.Resolve<ISigner>(),
+                    ctx.Resolve<IBlockTree>(),
                     ctx.Resolve<ILogManager>()))
                 .As<ISealer>()
                 .SingleInstance();
         }
-        else if (miningMode == EtcMiningMode.Local)
+        else if (miningMode is EtcMiningMode.Local or EtcMiningMode.Manual)
         {
             // Override EthashSealer with LocalEtchashSealer for CPU mining
             builder.Register(ctx => new LocalEtchashSealer(
