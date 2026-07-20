@@ -19,7 +19,8 @@ public enum EtcMiningMode
     Remote,
 
     /// <summary>
-    /// Local CPU mining.
+    /// CPU sealing triggered only by evm_mine, for dev/test chains that need
+    /// deterministic block heights.
     /// </summary>
-    Local
+    Manual
 }

@@ -224,7 +224,7 @@ public class EthereumClassicModule(
                 .As<ISealer>()
                 .SingleInstance();
         }
-        else if (miningMode == EtcMiningMode.Local)
+        else if (miningMode == EtcMiningMode.Manual)
         {
             // Override EthashSealer with LocalEtchashSealer for CPU mining
             builder.Register(ctx => new LocalEtchashSealer(

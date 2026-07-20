@@ -43,7 +43,7 @@ Set the mining mode via `EtcMining.Mode`:
 |------|-------------|
 | `None` | Mining disabled (default). |
 | `Remote` | External miners via the historical getwork protocol (`eth_getWork` / `eth_submitWork`). |
-| `Local` | Built-in CPU mining. |
+| `Manual` | CPU sealing triggered only by `evm_mine` (requires the `Evm` JSON-RPC module), for dev/test chains that need deterministic block heights. |
 
 Mining also requires `Mining.Enabled = true` and a `KeyStore.BlockAuthorAccount` (the coinbase that receives block rewards).
 
@@ -59,7 +59,7 @@ In `Remote` mode the plugin exposes the classic getwork mining RPC surface under
 | `eth_hashrate` | Returns the aggregated hashrate reported by external miners (each report expires ~10s after its last submission). |
 | `eth_mining` | Returns whether the node is mining. |
 
-These methods are only registered in `Remote` mode; in `None` / `Local` they are not available.
+These methods are only registered in `Remote` mode; in `None` / `Manual` they are not available.
 
 ## Build from Source
 

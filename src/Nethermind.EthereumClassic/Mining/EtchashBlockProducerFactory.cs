@@ -19,7 +19,7 @@ namespace Nethermind.EthereumClassic.Mining;
 /// favour of DI-registered <see cref="IBlockProducerFactory"/> /
 /// <see cref="IBlockProducerRunnerFactory"/> (mirrors <c>EthashBlockProducerFactory</c> /
 /// <c>NethDevBlockProducerFactory</c>). Only resolved once block production actually
-/// starts, so <see cref="ISealer"/> (registered only for EtcMining.Mode Remote/Local) is
+/// starts, so <see cref="ISealer"/> (registered only for EtcMining.Mode Remote/Manual) is
 /// present whenever this factory is constructed.
 /// </summary>
 internal sealed class EtchashBlockProducerFactory(

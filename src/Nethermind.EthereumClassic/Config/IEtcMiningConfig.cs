@@ -8,7 +8,7 @@ namespace Nethermind.EthereumClassic.Config;
 public interface IEtcMiningConfig : IConfig
 {
     [ConfigItem(
-        Description = "Mining mode: None (disabled), Remote (eth_getWork/submitWork), Local (CPU mining).",
+        Description = "Mining mode: None (disabled), Remote (eth_getWork/submitWork), Manual (CPU sealing on evm_mine only, for dev/test chains).",
         DefaultValue = "None")]
     EtcMiningMode Mode { get; set; }
 }
