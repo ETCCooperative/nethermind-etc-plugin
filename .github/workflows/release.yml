@@ -200,6 +200,7 @@ jobs:
       - name: Compose release notes
         id: notes
         env:
+          GH_TOKEN: ${{ github.token }}
           PLUGIN_REF: ${{ inputs.plugin_ref || github.ref_name }}
           NETHERMIND_REPO: ${{ inputs.nethermind_repo || 'NethermindEth/nethermind' }}
           NETHERMIND_TAG: ${{ needs.build.outputs.nethermind_tag }}
@@ -208,10 +209,16 @@ jobs:
           # trigger commit (typically main HEAD), which on a historical rebuild
           # is not the commit the plugin was actually built from.
           PLUGIN_SHA=$(git rev-parse --short=8 HEAD)
+          NETHERMIND_SHA=$(gh api "repos/${NETHERMIND_REPO}/releases/tags/${NETHERMIND_TAG}" \
+            --jq '.target_commitish' | head -c 8)
           {
             echo "Built from plugin ref \`${PLUGIN_REF}\` (commit \`${PLUGIN_SHA}\`)."
             echo
             echo "Bundles include Nethermind from [\`${NETHERMIND_REPO}@${NETHERMIND_TAG}\`](https://github.com/${NETHERMIND_REPO}/releases/tag/${NETHERMIND_TAG})."
+            if [ -n "$NETHERMIND_SHA" ]; then
+              echo
+              echo "Built from Nethermind ${NETHERMIND_TAG} @ ${NETHERMIND_SHA}"
+            fi
           } > RELEASE_NOTES.md
           cat RELEASE_NOTES.md
 
