@@ -54,7 +54,7 @@ echo "Updating Nethermind $CURRENT_VERSION -> $NEW_VERSION"
 set_pkg_version "$PROPS" "Nethermind.ReferenceAssemblies" "$NEW_VERSION"
 CURRENT_VERSION="$CURRENT_VERSION" NEW_VERSION="$NEW_VERSION" perl -pi -e '
   my $cur = quotemeta($ENV{CURRENT_VERSION});
-  s|<Version>$cur\.0</Version>|<Version>$ENV{NEW_VERSION}.0</Version>|;
+  s|<Version>$cur\.\d+</Version>|<Version>$ENV{NEW_VERSION}.0</Version>|;
 ' "$CSPROJ"
 
 # Fail loudly rather than silently releasing the old version: a no-op bump means
