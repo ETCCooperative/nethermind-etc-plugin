@@ -9,12 +9,12 @@ namespace Nethermind.EthereumClassic;
 
 internal sealed class EtchashEpochCalculator
 {
-    private const long EtchashEpochLength = 60_000;
+    private const ulong EtchashEpochLength = 60_000;
 
-    private readonly long _ecip1099Transition;
+    private readonly ulong _ecip1099Transition;
     private readonly uint _transitionEpoch;
 
-    public EtchashEpochCalculator(long ecip1099Transition)
+    public EtchashEpochCalculator(ulong ecip1099Transition)
     {
         _ecip1099Transition = ecip1099Transition;
         _transitionEpoch = (uint)(ecip1099Transition / EthashBase.EpochLength);
@@ -22,13 +22,13 @@ internal sealed class EtchashEpochCalculator
 
     public uint TransitionEpoch => _transitionEpoch;
 
-    public EtchashCacheEpoch GetCacheEpoch(long blockNumber)
+    public EtchashCacheEpoch GetCacheEpoch(ulong blockNumber)
     {
         uint dagEpoch = GetDagEpoch(blockNumber);
         return new EtchashCacheEpoch(dagEpoch, GetSeedEpoch(dagEpoch, blockNumber >= _ecip1099Transition));
     }
 
-    public IReadOnlyList<EtchashCacheEpoch> GetCacheEpochs(long startBlock, long endBlock, int maxEpochs = int.MaxValue)
+    public IReadOnlyList<EtchashCacheEpoch> GetCacheEpochs(ulong startBlock, ulong endBlock, int maxEpochs = int.MaxValue)
     {
         if (endBlock < startBlock)
             throw new ArgumentOutOfRangeException(nameof(endBlock), "End block must be greater than or equal to start block.");
@@ -37,7 +37,7 @@ internal sealed class EtchashEpochCalculator
 
         if (startBlock < _ecip1099Transition)
         {
-            long preTransitionEnd = Math.Min(endBlock, _ecip1099Transition - 1);
+            ulong preTransitionEnd = Math.Min(endBlock, _ecip1099Transition - 1);
             if (preTransitionEnd >= startBlock)
             {
                 uint startEpoch = GetDagEpoch(startBlock);
@@ -51,7 +51,7 @@ internal sealed class EtchashEpochCalculator
 
         if (endBlock >= _ecip1099Transition)
         {
-            long postTransitionStart = Math.Max(startBlock, _ecip1099Transition);
+            ulong postTransitionStart = Math.Max(startBlock, _ecip1099Transition);
             uint startEpoch = GetDagEpoch(postTransitionStart);
             uint endEpoch = GetDagEpoch(endBlock);
             for (uint epoch = startEpoch; epoch <= endEpoch; epoch++)
@@ -71,7 +71,7 @@ internal sealed class EtchashEpochCalculator
         epochs.Add(epoch);
     }
 
-    private uint GetDagEpoch(long blockNumber) =>
+    private uint GetDagEpoch(ulong blockNumber) =>
         blockNumber < _ecip1099Transition
             ? (uint)(blockNumber / EthashBase.EpochLength)
             : (_transitionEpoch / 2) + (uint)((blockNumber - _ecip1099Transition) / EtchashEpochLength);

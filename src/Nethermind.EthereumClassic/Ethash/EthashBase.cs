@@ -26,7 +26,7 @@ public static class EthashBase
     public static readonly uint CacheBytesInit = 1U << 24; // bytes in cache at genesis
     public static readonly uint CacheBytesGrowth = 1U << 17; // cache growth per epoch
     public const int CacheMultiplier = 1024; // Size of the DAG relative to the cache
-    public const long EpochLength = 30000; // blocks per epoch
+    public const ulong EpochLength = 30000; // blocks per epoch
     public const uint MixBytes = 128; // width of mix
     public const int HashBytes = 64; // hash length in bytes
     public const uint DataSetParents = 256; // number of parents of each dataset element
@@ -36,7 +36,7 @@ public static class EthashBase
 
     private static readonly BigInteger TwoTo256 = BigInteger.Pow(2, 256);
 
-    public static uint GetEpoch(long blockNumber)
+    public static uint GetEpoch(ulong blockNumber)
     {
         return (uint)(blockNumber / EpochLength);
     }

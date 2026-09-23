@@ -12,7 +12,7 @@ namespace Nethermind.EthereumClassic.Test.Mining;
 [TestFixture]
 public class EtchashMiningHelperTests
 {
-    private const long Ecip1099Transition = 11_700_000;
+    private const ulong Ecip1099Transition = 11_700_000;
     private const uint TransitionEpoch = (uint)(Ecip1099Transition / 30_000); // 390
 
     // --- Epoch calculation tests ---

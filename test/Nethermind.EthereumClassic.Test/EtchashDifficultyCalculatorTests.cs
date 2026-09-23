@@ -14,9 +14,9 @@ namespace Nethermind.EthereumClassic.Test;
 public class DifficultyBombCalculatorTests
 {
     // ETC Mainnet fork blocks
-    private const long DieHard = 3_000_000;
-    private const long Gotham = 5_000_000;
-    private const long Ecip1041 = 5_900_000;
+    private const ulong DieHard = 3_000_000;
+    private const ulong Gotham = 5_000_000;
+    private const ulong Ecip1041 = 5_900_000;
 
     [Test]
     public void TimeBomb_PreActivation_Is_Zero()
@@ -54,6 +54,22 @@ public class DifficultyBombCalculatorTests
     {
         var bombAtGotham = DifficultyBombCalculator.CalculateTimeBomb(5_000_000, DieHard, Gotham, Ecip1041);
         bombAtGotham.Should().BeGreaterThan(BigInteger.Zero);
+    }
+
+    [Test]
+    public void Gotham_Delay_Covering_Current_Period_Yields_Zero()
+    {
+        // Delay of 10 periods at period 10: the bomb exponent would go negative
+        var bomb = DifficultyBombCalculator.CalculateTimeBomb(1_000_000, 0, 1_000_000, null);
+        bomb.Should().Be(BigInteger.Zero);
+    }
+
+    [Test]
+    public void DieHard_Before_Second_Period_Yields_Zero()
+    {
+        // Paused at period 1, before the bomb ever produced a value
+        var bomb = DifficultyBombCalculator.CalculateTimeBomb(150_000, 100_000, null, null);
+        bomb.Should().Be(BigInteger.Zero);
     }
 
     [Test]

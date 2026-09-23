@@ -16,4 +16,4 @@ public sealed record MiningWork(
     Hash256 PowHash,
     Hash256 SeedHash,
     Hash256 Target,
-    long BlockNumber);
+    ulong BlockNumber);

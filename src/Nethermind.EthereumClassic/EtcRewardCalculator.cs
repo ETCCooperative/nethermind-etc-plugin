@@ -18,11 +18,11 @@ namespace Nethermind.EthereumClassic;
 /// </summary>
 public class EtcRewardCalculator : IRewardCalculator, IRewardCalculatorSource
 {
-    private readonly long _eraPeriod;
+    private readonly ulong _eraPeriod;
 
-    public EtcRewardCalculator(long eraPeriod)
+    public EtcRewardCalculator(ulong eraPeriod)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eraPeriod);
+        ArgumentOutOfRangeException.ThrowIfZero(eraPeriod);
         _eraPeriod = eraPeriod;
     }
 
@@ -42,7 +42,7 @@ public class EtcRewardCalculator : IRewardCalculator, IRewardCalculatorSource
         rewards[0] = new BlockReward(blockHeader.Beneficiary, mainReward);
 
         // Era determines uncle reward formula
-        long era = Ecip1017Calculator.GetEra(block.Number, _eraPeriod);
+        ulong era = Ecip1017Calculator.GetEra(block.Number, _eraPeriod);
 
         for (int i = 0; i < block.Uncles.Length; i++)
         {

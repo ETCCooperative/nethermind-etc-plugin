@@ -21,7 +21,7 @@ internal class Etchash : IEthash
     private readonly EtchashEpochCalculator _epochCalculator;
     private readonly EtchashHintBasedCache _cache;
 
-    public Etchash(ILogManager logManager, long ecip1099Transition)
+    public Etchash(ILogManager logManager, ulong ecip1099Transition)
     {
         _logger = logManager.GetClassLogger<Etchash>();
         _epochCalculator = new EtchashEpochCalculator(ecip1099Transition);
@@ -29,7 +29,7 @@ internal class Etchash : IEthash
         if (_logger.IsInfo) _logger.Info($"Etchash initialized with ECIP-1099 transition at block {ecip1099Transition} (epoch {_epochCalculator.TransitionEpoch})");
     }
 
-    public void HintRange(Guid guid, long start, long end)
+    public void HintRange(Guid guid, ulong start, ulong end)
     {
         _cache.Hint(guid, _epochCalculator.GetCacheEpochs(start, end, EtchashHintBasedCache.MaxHintEpochs));
     }
@@ -74,7 +74,7 @@ internal class Etchash : IEthash
         }
     }
 
-    private bool TryGetDataSet(EtchashCacheEpoch cacheEpoch, long blockNumber, out IEthashDataSet dataSet)
+    private bool TryGetDataSet(EtchashCacheEpoch cacheEpoch, ulong blockNumber, out IEthashDataSet dataSet)
     {
         IEthashDataSet? cached = _cache.Get(cacheEpoch);
         if (cached is not null)

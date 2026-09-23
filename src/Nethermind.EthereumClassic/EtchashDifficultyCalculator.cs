@@ -25,15 +25,15 @@ internal class EtchashDifficultyCalculator : IDifficultyCalculator
     private const long OfGenesisBlock = 131_072;
 
     private readonly ISpecProvider _specProvider;
-    private readonly long? _dieHardBlock;
-    private readonly long? _gothamBlock;
-    private readonly long? _ecip1041Block;
+    private readonly ulong? _dieHardBlock;
+    private readonly ulong? _gothamBlock;
+    private readonly ulong? _ecip1041Block;
 
     public EtchashDifficultyCalculator(
         ISpecProvider specProvider,
-        long? dieHardTransition,
-        long? gothamTransition,
-        long? ecip1041Transition)
+        ulong? dieHardTransition,
+        ulong? gothamTransition,
+        ulong? ecip1041Transition)
     {
         _specProvider = specProvider;
         _dieHardBlock = dieHardTransition;
@@ -52,7 +52,7 @@ internal class EtchashDifficultyCalculator : IDifficultyCalculator
         in UInt256 parentDifficulty,
         ulong parentTimestamp,
         ulong currentTimestamp,
-        long blockNumber,
+        ulong blockNumber,
         bool parentHasUncles)
     {
         IReleaseSpec spec = _specProvider.GetSpec(blockNumber, currentTimestamp);

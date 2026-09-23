@@ -97,7 +97,7 @@ public class EtchashHintBasedCacheTests
     [Test]
     public void Hint_Across_Ecip1099_Transition_Builds_Both_Sides()
     {
-        const long ecip1099Transition = 11_700_000;
+        const ulong ecip1099Transition = 11_700_000;
         EtchashEpochCalculator calculator = new(ecip1099Transition);
         EtchashHintBasedCache cache = new(epoch => new TestDataSet(epoch.SeedEpoch));
         IReadOnlyList<EtchashCacheEpoch> epochs =

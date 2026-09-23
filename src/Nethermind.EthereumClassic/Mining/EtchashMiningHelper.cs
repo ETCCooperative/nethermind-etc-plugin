@@ -12,8 +12,8 @@ namespace Nethermind.EthereumClassic.Mining;
 /// </summary>
 internal static class EtchashMiningHelper
 {
-    internal const long EpochLength = 30000;
-    internal const long EtchashEpochLength = 60000;
+    internal const ulong EpochLength = 30000;
+    internal const ulong EtchashEpochLength = 60000;
 
     internal static readonly BigInteger TwoTo256 = BigInteger.Pow(2, 256);
 
@@ -22,7 +22,7 @@ internal static class EtchashMiningHelper
     /// Before ECIP-1099: epoch = blockNumber / 30000
     /// After ECIP-1099: epoch continues with 60000-block epochs
     /// </summary>
-    internal static uint GetEtchashEpoch(long blockNumber, long ecip1099Transition, uint transitionEpoch) =>
+    internal static uint GetEtchashEpoch(ulong blockNumber, ulong ecip1099Transition, uint transitionEpoch) =>
         blockNumber < ecip1099Transition
             ? (uint)(blockNumber / EpochLength)
             : (transitionEpoch / 2) + (uint)((blockNumber - ecip1099Transition) / EtchashEpochLength);
