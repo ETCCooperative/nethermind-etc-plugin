@@ -31,7 +31,7 @@ internal sealed class LocalEtchashSealer : ISealer
 
     public Address Address => _signer.Address;
 
-    public bool CanSeal(long blockNumber, Hash256 parentHash) => true;
+    public bool CanSeal(ulong blockNumber, Hash256 parentHash) => true;
 
     public async Task<Block> SealBlock(Block block, CancellationToken cancellationToken)
     {

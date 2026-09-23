@@ -108,7 +108,7 @@ public class EthereumClassicPlugin(
 
             if (p.Ecip1099Transition is null)
                 throw new InvalidOperationException("ecip1099Transition is required for Etchash chains");
-            if (p.Ecip1017EraRounds <= 0)
+            if (p.Ecip1017EraRounds == 0)
                 throw new InvalidOperationException("ecip1017EraRounds is required for Etchash chains");
 
             return new EthereumClassicModule(
@@ -125,11 +125,11 @@ public class EthereumClassicPlugin(
 }
 
 public class EthereumClassicModule(
-    long ecip1099Transition,
-    long ecip1017EraRounds,
-    long? dieHardTransition,
-    long? gothamTransition,
-    long? ecip1041Transition,
+    ulong ecip1099Transition,
+    ulong ecip1017EraRounds,
+    ulong? dieHardTransition,
+    ulong? gothamTransition,
+    ulong? ecip1041Transition,
     EtcMiningMode miningMode,
     bool messEnabled,
     bool forceSealCheck) : Module

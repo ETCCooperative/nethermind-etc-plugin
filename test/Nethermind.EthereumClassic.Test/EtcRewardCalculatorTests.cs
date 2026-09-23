@@ -13,24 +13,24 @@ namespace Nethermind.EthereumClassic.Test;
 [TestFixture]
 public class Ecip1017CalculatorTests
 {
-    private const long MainnetEra = 5_000_000;
-    private const long MordorEra = 2_000_000;
+    private const ulong MainnetEra = 5_000_000;
+    private const ulong MordorEra = 2_000_000;
 
     // Block reward boundaries: (blockNumber, eraPeriod, expectedWei)
     private static readonly object[] BlockRewardCases =
     [
         // Mainnet era boundaries
-        new object[] { 1L, MainnetEra, 5_000_000_000_000_000_000UL },           // Era 1
-        new object[] { 5_000_001L, MainnetEra, 4_000_000_000_000_000_000UL },   // Era 2
-        new object[] { 10_000_001L, MainnetEra, 3_200_000_000_000_000_000UL },  // Era 3
-        new object[] { 15_000_001L, MainnetEra, 2_560_000_000_000_000_000UL },  // Era 4
-        new object[] { 20_000_001L, MainnetEra, 2_048_000_000_000_000_000UL },  // Era 5
+        new object[] { 1UL, MainnetEra, 5_000_000_000_000_000_000UL },           // Era 1
+        new object[] { 5_000_001UL, MainnetEra, 4_000_000_000_000_000_000UL },   // Era 2
+        new object[] { 10_000_001UL, MainnetEra, 3_200_000_000_000_000_000UL },  // Era 3
+        new object[] { 15_000_001UL, MainnetEra, 2_560_000_000_000_000_000UL },  // Era 4
+        new object[] { 20_000_001UL, MainnetEra, 2_048_000_000_000_000_000UL },  // Era 5
         // Mordor (2M era)
-        new object[] { 2_000_001L, MordorEra, 4_000_000_000_000_000_000UL },
+        new object[] { 2_000_001UL, MordorEra, 4_000_000_000_000_000_000UL },
     ];
 
     [TestCaseSource(nameof(BlockRewardCases))]
-    public void CalculateBlockReward_Returns_Expected_Value(long blockNumber, long eraPeriod, ulong expectedWei)
+    public void CalculateBlockReward_Returns_Expected_Value(ulong blockNumber, ulong eraPeriod, ulong expectedWei)
     {
         var reward = Ecip1017Calculator.CalculateBlockReward(blockNumber, eraPeriod);
         ((ulong)reward).Should().Be(expectedWei);

@@ -24,7 +24,7 @@ internal sealed class RemoteSealerClient : IRemoteSealerClient
     private const int MaxRecentWorkItems = 8;
 
     private readonly IEthash _ethash;
-    private readonly long _ecip1099Transition;
+    private readonly ulong _ecip1099Transition;
     private readonly uint _transitionEpoch;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<Hash256, Block> _recentWork = new();
@@ -34,7 +34,7 @@ internal sealed class RemoteSealerClient : IRemoteSealerClient
     private MiningWork? _currentWork;
     private Action<Block>? _onBlockMined;
 
-    public RemoteSealerClient(IEthash ethash, long ecip1099Transition, ILogManager logManager)
+    public RemoteSealerClient(IEthash ethash, ulong ecip1099Transition, ILogManager logManager)
     {
         _ethash = ethash;
         _ecip1099Transition = ecip1099Transition;
@@ -128,7 +128,7 @@ internal sealed class RemoteSealerClient : IRemoteSealerClient
         return Keccak.Compute(encoded);
     }
 
-    private Hash256 ComputeSeedHash(long blockNumber)
+    private Hash256 ComputeSeedHash(ulong blockNumber)
     {
         uint dagEpoch = GetEtchashEpoch(blockNumber);
         bool ecip1099Active = blockNumber >= _ecip1099Transition;
@@ -144,7 +144,7 @@ internal sealed class RemoteSealerClient : IRemoteSealerClient
         return new Hash256(EtchashMiningHelper.ComputeTargetBytes((BigInteger)difficulty));
     }
 
-    private uint GetEtchashEpoch(long blockNumber) =>
+    private uint GetEtchashEpoch(ulong blockNumber) =>
         EtchashMiningHelper.GetEtchashEpoch(blockNumber, _ecip1099Transition, _transitionEpoch);
 
     private void CleanupOldWork()

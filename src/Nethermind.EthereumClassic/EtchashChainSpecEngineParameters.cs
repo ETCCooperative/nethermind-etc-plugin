@@ -28,62 +28,62 @@ public class EtchashChainSpecEngineParameters : EthashChainSpecEngineParametersB
     /// After this block, epoch length changes from 30000 to 60000.
     /// For ETC mainnet, this is block 11,700,000.
     /// </summary>
-    public long? Ecip1099Transition { get; set; }
+    public ulong? Ecip1099Transition { get; set; }
 
     /// <summary>
     /// Block number for EIP-3855 (PUSH0 opcode) - Spiral fork.
     /// ETC uses block-based transitions unlike post-merge ETH which uses timestamps.
     /// </summary>
-    public long? Eip3855Transition { get; set; }
+    public ulong? Eip3855Transition { get; set; }
 
     /// <summary>
     /// Block number for EIP-3860 (initcode size limit) - Spiral fork.
     /// ETC uses block-based transitions unlike post-merge ETH which uses timestamps.
     /// </summary>
-    public long? Eip3860Transition { get; set; }
+    public ulong? Eip3860Transition { get; set; }
 
     /// <summary>
     /// Block number for EIP-3651 (warm COINBASE) - Spiral fork.
     /// ETC uses block-based transitions unlike post-merge ETH which uses timestamps.
     /// </summary>
-    public long? Eip3651Transition { get; set; }
+    public ulong? Eip3651Transition { get; set; }
 
     /// <summary>
     /// ECIP-1017 era length in blocks.
     /// ETC mainnet: 5,000,000. Mordor testnet: 2,000,000.
     /// </summary>
-    public long Ecip1017EraRounds { get; set; }
+    public ulong Ecip1017EraRounds { get; set; }
 
     /// <summary>
     /// Block at which Die Hard activates (difficulty bomb paused at period 30).
     /// Null = bomb never existed (e.g., Mordor testnet).
     /// ETC mainnet: 3,000,000.
     /// </summary>
-    public long? DieHardTransition { get; set; }
+    public ulong? DieHardTransition { get; set; }
 
     /// <summary>
     /// Block at which Gotham activates (difficulty bomb delayed by 20 periods).
     /// Null = bomb never existed (e.g., Mordor testnet).
     /// ETC mainnet: 5,000,000.
     /// </summary>
-    public long? GothamTransition { get; set; }
+    public ulong? GothamTransition { get; set; }
 
     /// <summary>
     /// Block at which ECIP-1041 activates (difficulty bomb removal).
     /// Null = bomb never existed (e.g., Mordor testnet).
     /// ETC mainnet: 5,900,000.
     /// </summary>
-    public long? Ecip1041Transition { get; set; }
+    public ulong? Ecip1041Transition { get; set; }
 
     /// <summary>
     /// Per ECIP-1082/ECIP-1091: Block reward reductions (ECIP-1017) should NOT affect Fork ID.
     /// This override excludes BlockReward entries from fork transitions.
     /// </summary>
-    void IChainSpecEngineParameters.AddTransitions(SortedSet<long> blockNumbers, SortedSet<ulong> timestamps)
+    void IChainSpecEngineParameters.AddTransitions(SortedSet<ulong> blockNumbers, SortedSet<ulong> timestamps)
     {
         if (DifficultyBombDelays is not null)
         {
-            foreach ((long blockNumber, _) in DifficultyBombDelays)
+            foreach ((ulong blockNumber, _) in DifficultyBombDelays)
             {
                 blockNumbers.Add(blockNumber);
             }
@@ -110,7 +110,7 @@ public class EtchashChainSpecEngineParameters : EthashChainSpecEngineParametersB
         chainSpec.DaoForkBlockNumber = DaoHardforkTransition;
     }
 
-    void IChainSpecEngineParameters.ApplyToReleaseSpec(ReleaseSpec spec, long startBlock, ulong? startTimestamp)
+    void IChainSpecEngineParameters.ApplyToReleaseSpec(ReleaseSpec spec, ulong startBlock, ulong? startTimestamp)
     {
         // Call base implementation first (sets BlockReward, etc.)
         base.ApplyToReleaseSpec(spec, startBlock, startTimestamp);
@@ -124,7 +124,7 @@ public class EtchashChainSpecEngineParameters : EthashChainSpecEngineParametersB
 
         // ETC Mystique does NOT include EIP-1559 (kept in chainspec for Fork ID only)
         spec.IsEip1559Enabled = false;
-        spec.Eip1559TransitionBlock = long.MaxValue;
+        spec.Eip1559TransitionBlock = ulong.MaxValue;
 
         // Spiral fork (block-based transitions for ETC)
         // EIP-3855: PUSH0 opcode

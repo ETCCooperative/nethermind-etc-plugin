@@ -9,7 +9,7 @@ namespace Nethermind.EthereumClassic.Test;
 [TestFixture]
 public class EtchashEpochCalculatorTests
 {
-    private const long Ecip1099Transition = 11_700_000;
+    private const ulong Ecip1099Transition = 11_700_000;
 
     private readonly EtchashEpochCalculator _calculator = new(Ecip1099Transition);
 

@@ -17,7 +17,6 @@
     <PackageReference Include="Nethermind.ReferenceAssemblies" />
     <PackageReference Include="Nethermind.Numerics.Int256" />
     <PackageReference Include="Autofac" />
-    <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <!-- Allow test project to access internal types -->

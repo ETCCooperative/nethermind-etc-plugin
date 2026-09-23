@@ -26,21 +26,21 @@ public static class Ecip1017Calculator
     /// <param name="blockNumber">The block number.</param>
     /// <param name="eraPeriod">Era period in blocks (5M for mainnet, 2M for Mordor).</param>
     /// <returns>Block reward in wei.</returns>
-    public static UInt256 CalculateBlockReward(long blockNumber, long eraPeriod)
+    public static UInt256 CalculateBlockReward(ulong blockNumber, ulong eraPeriod)
     {
-        if (blockNumber <= 0)
+        if (blockNumber == 0)
         {
             return BaseReward;
         }
 
         // Era is 1-indexed: Era 1 = blocks 1-eraPeriod, Era 2 = blocks eraPeriod+1-2*eraPeriod, etc.
         // For calculation, we use 0-indexed era: era0 = (blockNumber - 1) / eraPeriod
-        long era = (blockNumber - 1) / eraPeriod;
+        ulong era = (blockNumber - 1) / eraPeriod;
 
         // Calculate reward = 5 ETC * (4/5)^era using integer math
         // To avoid overflow, we apply the reduction iteratively
         UInt256 reward = BaseReward;
-        for (long i = 0; i < era; i++)
+        for (ulong i = 0; i < era; i++)
         {
             // reward = reward * 4 / 5
             reward = reward * 4 / 5;
@@ -56,9 +56,9 @@ public static class Ecip1017Calculator
     /// <param name="blockNumber">The block number.</param>
     /// <param name="eraPeriod">Era period in blocks.</param>
     /// <returns>0-indexed era number.</returns>
-    public static long GetEra(long blockNumber, long eraPeriod)
+    public static ulong GetEra(ulong blockNumber, ulong eraPeriod)
     {
-        if (blockNumber <= 0) return 0;
+        if (blockNumber == 0) return 0;
         return (blockNumber - 1) / eraPeriod;
     }
 
@@ -72,7 +72,7 @@ public static class Ecip1017Calculator
     /// <param name="uncleNumber">The uncle block number.</param>
     /// <param name="era">The 0-indexed era number.</param>
     /// <returns>Uncle reward in wei.</returns>
-    public static UInt256 CalculateUncleReward(UInt256 blockReward, long blockNumber, long uncleNumber, long era)
+    public static UInt256 CalculateUncleReward(UInt256 blockReward, ulong blockNumber, ulong uncleNumber, ulong era)
     {
         if (era == 0)
         {

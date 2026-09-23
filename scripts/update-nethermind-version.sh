@@ -26,11 +26,6 @@ NETHERMIND_REPO="${NETHERMIND_REPO:-NethermindEth/nethermind}"
 # for references without a public key token. Today that means Autofac. Int256 is
 # synced for runtime hygiene (so we compile against the Int256 the node loads),
 # not to keep the compiler happy — it is not strong-named.
-#
-# Known gap: Newtonsoft.Json IS strong-named and reaches Nethermind.Consensus.Ethash
-# transitively, but upstream declares it in no props/csproj, so this sync cannot see
-# it. It pins its assembly version per major (13.0.3 -> 13.0.0.0), so only a jump to
-# 14.x would bite — and that surfaces as a CS1705 build failure and a PR, not silently.
 SHARED_PACKAGES=(Autofac Nethermind.Numerics.Int256)
 
 # Package names are matched literally. Names ending in digits (Int256) would

@@ -35,7 +35,7 @@ internal sealed class RemoteEtchashSealer : ISealer
 
     public Address Address => _signer.Address;
 
-    public bool CanSeal(long blockNumber, Hash256 parentHash) => true;
+    public bool CanSeal(ulong blockNumber, Hash256 parentHash) => true;
 
     public Task<Block> SealBlock(Block block, CancellationToken cancellationToken)
     {

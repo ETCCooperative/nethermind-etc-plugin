@@ -16,6 +16,7 @@ using Nethermind.Core.Specs;
 using Nethermind.Db;
 using Nethermind.Int256;
 using Nethermind.Logging;
+using Nethermind.State;
 using Nethermind.State.Repositories;
 
 namespace Nethermind.EthereumClassic;
@@ -34,11 +35,12 @@ internal class EtcBlockTree : BlockTree
         IChainLevelInfoRepository? chainLevelInfoRepository,
         ISpecProvider? specProvider,
         ISyncConfig? syncConfig,
+        IStateBoundary? stateBoundary,
         ILogManager? logManager,
-        long genesisBlockNumber = 0)
+        ulong genesisBlockNumber = 0)
         : base(blockStore, headerDb, blockInfoDb, metadataDb, badBlockStore,
             balStore, chainLevelInfoRepository, specProvider, syncConfig,
-            logManager, genesisBlockNumber)
+            stateBoundary, logManager, genesisBlockNumber)
     {
     }
 
