@@ -45,7 +45,14 @@ jobs:
           # release to pre-release after we bumped to it; in that window /releases/latest
           # falls back to the previous stable, so a plain `!=` would attempt a downgrade.
           HIGHER=$(printf '%s\n%s\n' "$CURRENT" "$LATEST" | sort -V | tail -n1)
-          if [ "$LATEST" != "$CURRENT" ] && [ "$HIGHER" = "$LATEST" ]; then
+          if [ "$LATEST" != "$CURRENT" ] && [ "$HIGHER" = "$LATEST" ] \
+            && git ls-remote --exit-code --heads origin "auto-update/nethermind-${LATEST}" >/dev/null; then
+            # A previous run already opened the branch for this version, and it may now
+            # carry manual fixes. Rebuilding would only fail again and recreate the branch
+            # on top of them. Delete the branch to retry.
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Branch auto-update/nethermind-${LATEST} already exists. Skipping; delete it to retry."
+          elif [ "$LATEST" != "$CURRENT" ] && [ "$HIGHER" = "$LATEST" ]; then
             # Verify the NuGet package actually exists before attempting update
             NUGET_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://api.nuget.org/v3-flatcontainer/nethermind.referenceassemblies/${LATEST}/nethermind.referenceassemblies.${LATEST}.nupkg")
@@ -290,14 +297,12 @@ jobs:
           BRANCH_NAME="auto-update/nethermind-${NEW_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Fetch the remote branch if it exists from a previous failed run, so
-          # --force-with-lease has a known ref to compare against (otherwise it
-          # rejects the push as "stale info").
-          git fetch origin "$BRANCH_NAME" || true
-          git checkout -B "$BRANCH_NAME"
+          # The check job skips versions whose branch already exists, so this creates it.
+          # A plain push fails instead of overwriting if one appeared in the meantime.
+          git checkout -b "$BRANCH_NAME"
           git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
           git commit -m "chore: update to Nethermind $NEW_VERSION"
-          git push --force-with-lease -u origin "$BRANCH_NAME"
+          git push -u origin "$BRANCH_NAME"
 
       - name: Create Pull Request
         env:
