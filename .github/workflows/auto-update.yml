@@ -106,6 +106,14 @@ jobs:
           CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
         run: scripts/update-nethermind-version.sh "$CURRENT_VERSION" "$NEW_VERSION"
 
+      - name: Refresh sync pivots
+        env:
+          CLASSIC_PIVOT_RPC_URL: ${{ secrets.CLASSIC_PIVOT_RPC_URL }}
+          MORDOR_PIVOT_RPC_URL: ${{ secrets.MORDOR_PIVOT_RPC_URL }}
+        run: |
+          scripts/update-sync-pivot.sh classic
+          scripts/update-sync-pivot.sh mordor
+
       - name: Restore dependencies
         run: dotnet restore
 
@@ -130,6 +138,16 @@ jobs:
             publish/Nethermind.EthereumClassic.dll
             chainspecs/
             configs/
+
+      - name: Upload version files
+        uses: actions/upload-artifact@v7
+        with:
+          name: version-files
+          path: |
+            Directory.Packages.props
+            src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+            configs/classic.cfg
+            configs/mordor.cfg
 
   integration-test:
     needs: [check-and-update, build]
@@ -240,11 +258,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Update version files
-        env:
-          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
-          CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
-        run: scripts/update-nethermind-version.sh "$CURRENT_VERSION" "$NEW_VERSION"
+      - name: Download version files
+        # The exact files the release was built from. Regenerating them here would
+        # pick a newer pivot than the one shipped in the bundles.
+        uses: actions/download-artifact@v8
+        with:
+          name: version-files
 
       - name: Commit and push changes
         env:
@@ -252,9 +271,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
-          # On a `replace` rebuild the version files don't change, so there is
-          # nothing to commit.
+          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj configs/classic.cfg configs/mordor.cfg
+          # On a `replace` rebuild the version doesn't change; only the pivots
+          # may, and there may be nothing to commit.
           if git diff --cached --quiet; then
             echo "No file changes to commit (release_action=${{ needs.check-and-update.outputs.release_action }})."
           else
@@ -350,6 +369,14 @@ jobs:
           CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
         run: scripts/update-nethermind-version.sh "$CURRENT_VERSION" "$NEW_VERSION"
 
+      - name: Refresh sync pivots
+        env:
+          CLASSIC_PIVOT_RPC_URL: ${{ secrets.CLASSIC_PIVOT_RPC_URL }}
+          MORDOR_PIVOT_RPC_URL: ${{ secrets.MORDOR_PIVOT_RPC_URL }}
+        run: |
+          scripts/update-sync-pivot.sh classic
+          scripts/update-sync-pivot.sh mordor
+
       - name: Create PR branch and push
         env:
           NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
@@ -360,7 +387,7 @@ jobs:
           # The check job skips versions whose branch already exists, so this creates it.
           # A plain push fails instead of overwriting if one appeared in the meantime.
           git checkout -b "$BRANCH_NAME"
-          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj configs/classic.cfg configs/mordor.cfg
           git commit -m "chore: update to Nethermind $NEW_VERSION"
           git push -u origin "$BRANCH_NAME"
 
