@@ -35,6 +35,14 @@ cp configs/*.cfg /path/to/nethermind/configs/
 ./nethermind --Init.ChainSpecPath=chainspecs/classic.json
 ```
 
+### Sync mode
+
+The `classic` and `mordor` configs snap sync by default, from a pivot block shipped in the config and refreshed on every release. A node that already has a database keeps syncing the way it started. To full sync from genesis instead:
+
+```bash
+./nethermind --config classic --Sync.FastSync false --Sync.SnapSync false
+```
+
 ## Mining (PoW)
 
 Set the mining mode via `EtcMining.Mode`:
