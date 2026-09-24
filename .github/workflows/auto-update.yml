@@ -90,8 +90,6 @@ jobs:
     needs: check-and-update
     if: needs.check-and-update.outputs.needs_update == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -133,21 +131,47 @@ jobs:
             chainspecs/
             configs/
 
-      - name: Commit and push changes
+  integration-test:
+    needs: [check-and-update, build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download plugin artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: plugin
+          path: plugin
+
+      - name: Download Nethermind release
         env:
-          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+          GH_TOKEN: ${{ github.token }}
+          NETHERMIND_TAG: ${{ needs.check-and-update.outputs.new_version }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
-          # On a `replace` rebuild the version files don't change, so there is
-          # nothing to commit.
-          if git diff --cached --quiet; then
-            echo "No file changes to commit (release_action=${{ needs.check-and-update.outputs.release_action }})."
-          else
-            git commit -m "chore: update to Nethermind $NEW_VERSION"
-            git push
-          fi
+          gh release download "$NETHERMIND_TAG" \
+            --repo ${{ env.NETHERMIND_REPO }} \
+            --pattern "*-linux-x64.zip" \
+            --output nethermind.zip
+          unzip nethermind.zip -d nethermind
+
+      - name: Inject plugin into Nethermind
+        run: |
+          cp plugin/publish/Nethermind.EthereumClassic.dll nethermind/plugins/
+          mkdir -p nethermind/chainspecs
+          cp plugin/chainspecs/*.json nethermind/chainspecs/
+          cp plugin/configs/*.cfg nethermind/configs/
+
+      - name: Run integration tests
+        run: ./scripts/integration-test.sh ./nethermind
+
+      - name: Upload Nethermind logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nethermind-logs
+          path: nethermind/nethermind-test-*.log
 
   create-bundles:
     needs: [check-and-update, build]
@@ -202,8 +226,44 @@ jobs:
           name: bundle-${{ matrix.arch }}
           path: nethermind-etc-v${{ needs.check-and-update.outputs.plugin_version }}-${{ matrix.arch }}.zip
 
+  # The version bump lands on main only once the plugin has built, passed its
+  # tests against the new Nethermind and been bundled. Pushing earlier would leave
+  # main on a version whose release never happened, and the failure PR below
+  # would carry an empty diff.
+  commit-version-bump:
+    needs: [check-and-update, integration-test, create-bundles]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Update version files
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+          CURRENT_VERSION: ${{ needs.check-and-update.outputs.current_version }}
+        run: scripts/update-nethermind-version.sh "$CURRENT_VERSION" "$NEW_VERSION"
+
+      - name: Commit and push changes
+        env:
+          NEW_VERSION: ${{ needs.check-and-update.outputs.new_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Directory.Packages.props src/Nethermind.EthereumClassic/Nethermind.EthereumClassic.csproj
+          # On a `replace` rebuild the version files don't change, so there is
+          # nothing to commit.
+          if git diff --cached --quiet; then
+            echo "No file changes to commit (release_action=${{ needs.check-and-update.outputs.release_action }})."
+          else
+            git commit -m "chore: update to Nethermind $NEW_VERSION"
+            git push
+          fi
+
   release:
-    needs: [check-and-update, build, create-bundles]
+    needs: [check-and-update, build, integration-test, create-bundles, commit-version-bump]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -271,7 +331,7 @@ jobs:
           prerelease: true
 
   create-pr-on-failure:
-    needs: [check-and-update, build, create-bundles, release]
+    needs: [check-and-update, build, integration-test, create-bundles, commit-version-bump, release]
     # Only on a real upgrade. A `replace` rebuild has no version diff, so a PR
     # would be empty — if one fails, the workflow logs are the right place to look.
     if: failure() && needs.check-and-update.outputs.release_action == 'upgrade'
